@@ -18,6 +18,7 @@ use alloc::{
 use itertools::Itertools;
 use proof_of_sql_parser::posql_time::{PoSQLTimeUnit, PoSQLTimeZone};
 use serde::{Deserialize, Serialize};
+use super::column::NullableColumn;
 
 #[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -51,6 +52,25 @@ pub enum OwnedColumn<S: Scalar> {
     /// Timestamp columns
     #[cfg_attr(test, proptest(skip))]
     TimestampTZ(PoSQLTimeUnit, PoSQLTimeZone, Vec<i64>),
+}
+
+/// A nullable column that contains a values OwnedColumn, 
+/// and an optional boolean presence vector.
+/// 
+/// When `presence` is `None`, the column is not nullable (all values are present).
+/// When `presence` contains a boolean vector, its length must match the length of the values column,
+/// and a `true` value indicates the presence of a value at the corresponding index,
+/// while a `false` value indicates NULL.
+///
+/// This implementation follows the PostgreSQL approach to NULL values by using
+/// a separate boolean array to track presence.
+#[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize)]
+pub struct OwnedNullableColumn<S: Scalar> {
+    /// The actual values in the column
+    pub values: OwnedColumn<S>,
+    /// Optional presence vector. `true` means value is present, `false` means NULL
+    /// If `None`, all values are present (non-NULL)
+    pub presence: Option<Vec<bool>>,
 }
 
 impl<S: Scalar> OwnedColumn<S> {
@@ -456,6 +476,101 @@ impl<S: Scalar> OwnedColumn<S> {
         } else {
             Err(ColumnCoercionError::InvalidTypeCoercion)
         }
+    }
+}
+
+impl<S: Scalar> OwnedNullableColumn<S> {
+    /// Creates a new OwnedNullableColumn without any NULL values
+    /// (all values are present)
+    #[must_use]
+    pub fn new(values: OwnedColumn<S>) -> Self {
+        Self {
+            values,
+            presence: None,
+        }
+    }
+
+    /// Creates a new OwnedNullableColumn with the given values and presence vector
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if the presence vector is `Some` and its length does not match the values length
+    #[must_use]
+    pub fn with_presence(values: OwnedColumn<S>, presence: Option<Vec<bool>>) -> Self {
+        if let Some(presence_vec) = &presence {
+            assert_eq!(
+                values.len(),
+                presence_vec.len(),
+                "Presence vector length must match values length"
+            );
+        }
+        Self { values, presence }
+    }
+
+    /// Returns the length of the column
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Returns `true` if the column has no elements
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Returns `true` if the column is nullable
+    #[must_use]
+    pub fn is_nullable(&self) -> bool {
+        self.presence.is_some()
+    }
+
+    /// Returns the column type
+    #[must_use]
+    pub fn column_type(&self) -> ColumnType {
+        self.values.column_type()
+    }
+
+    /// Checks if the value at the given index is NULL
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if the index is out of bounds
+    #[must_use]
+    pub fn is_null(&self, index: usize) -> bool {
+        if index >= self.len() {
+            panic!("Index out of bounds");
+        }
+        match &self.presence {
+            Some(presence) => !presence[index],
+            None => false, // When presence is None, no values are NULL
+        }
+    }
+
+    /// Returns the sliced column
+    #[must_use]
+    pub fn slice(&self, start: usize, end: usize) -> Self {
+        let values = self.values.slice(start, end);
+        let presence = self.presence.as_ref().map(|p| p[start..end].to_vec());
+        Self { values, presence }
+    }
+
+    /// Returns the column with its entries permutated
+    pub fn try_permute(&self, permutation: &Permutation) -> Result<Self, PermutationError> {
+        let values = self.values.try_permute(permutation)?;
+        let presence = match &self.presence {
+            Some(p) => Some(permutation.try_apply(p)?),
+            None => None,
+        };
+        Ok(Self { values, presence })
+    }
+}
+
+impl<'a, S: Scalar> From<&NullableColumn<'a, S>> for OwnedNullableColumn<S> {
+    fn from(nullable_column: &NullableColumn<'a, S>) -> Self {
+        let values = OwnedColumn::from(&nullable_column.values);
+        let presence = nullable_column.presence.map(|p| p.to_vec());
+        Self { values, presence }
     }
 }
 
@@ -906,5 +1021,103 @@ mod test {
             lhs_hashes[0] * scalars[0] + lhs_hashes[1] * scalars[1] + lhs_hashes[2] * scalars[2];
 
         assert_eq!(product, expected);
+    }
+
+    #[test]
+    fn we_can_create_owned_nullable_column() {
+        let bool_values = vec![true, false, true];
+        let owned_column: OwnedColumn<TestScalar> = OwnedColumn::Boolean(bool_values);
+        
+        let nullable_column = OwnedNullableColumn::new(owned_column.clone());
+        assert_eq!(nullable_column.len(), 3);
+        assert!(!nullable_column.is_empty());
+        assert!(!nullable_column.is_nullable());
+        
+        for i in 0..3 {
+            assert!(!nullable_column.is_null(i));
+        }
+        
+        let presence = Some(vec![true, true, true]);
+        let nullable_column = OwnedNullableColumn::with_presence(owned_column.clone(), presence);
+        assert_eq!(nullable_column.len(), 3);
+        assert!(nullable_column.is_nullable());
+        
+        for i in 0..3 {
+            assert!(!nullable_column.is_null(i));
+        }
+        
+        let presence = Some(vec![true, false, true]);
+        let nullable_column = OwnedNullableColumn::with_presence(owned_column, presence);
+        assert_eq!(nullable_column.len(), 3);
+        assert!(nullable_column.is_nullable());
+        
+        assert!(!nullable_column.is_null(0));
+        assert!(nullable_column.is_null(1));
+        assert!(!nullable_column.is_null(2));
+    }
+    
+    #[test]
+    #[should_panic(expected = "Presence vector length must match values length")]
+    fn owned_nullable_column_panics_if_presence_length_mismatch() {
+        let bool_values = vec![true, false, true];
+        let owned_column: OwnedColumn<TestScalar> = OwnedColumn::Boolean(bool_values);
+        
+        let presence = Some(vec![true, false]);
+        let _ = OwnedNullableColumn::with_presence(owned_column, presence);
+    }
+    
+    #[test]
+    fn we_can_slice_owned_nullable_column() {
+        let bool_values = vec![true, false, true, false, true];
+        let owned_column: OwnedColumn<TestScalar> = OwnedColumn::Boolean(bool_values);
+        let presence = Some(vec![true, false, true, true, false]);
+        let nullable_column = OwnedNullableColumn::with_presence(owned_column, presence);
+        
+        let sliced = nullable_column.slice(1, 4);
+        
+        assert_eq!(sliced.len(), 3);
+        assert!(sliced.is_nullable());
+        
+        assert!(sliced.is_null(0));
+        assert!(!sliced.is_null(1));
+        assert!(!sliced.is_null(2));
+    }
+    
+    #[test]
+    fn we_can_permute_owned_nullable_column() {
+        let bool_values = vec![true, false, true];
+        let owned_column: OwnedColumn<TestScalar> = OwnedColumn::Boolean(bool_values);
+        let presence = Some(vec![true, false, true]);
+        let nullable_column = OwnedNullableColumn::with_presence(owned_column, presence);
+        
+        let permutation = Permutation::try_new(vec![2, 0, 1]).unwrap();
+        
+        let permuted = nullable_column.try_permute(&permutation).unwrap();
+        
+        assert_eq!(permuted.len(), 3);
+        assert!(permuted.is_nullable());
+        
+        assert!(!permuted.is_null(0));
+        assert!(!permuted.is_null(1));
+        assert!(permuted.is_null(2));
+    }
+    
+    #[test]
+    fn we_can_convert_nullable_column_to_owned_nullable_column() {
+        let alloc = Bump::new();
+        
+        let bool_values = [true, false, true];
+        let column: Column<'_, TestScalar> = Column::Boolean(&bool_values);
+        
+        let presence = Some(alloc.alloc_slice_copy(&[true, false, true]));
+        let nullable_column = NullableColumn::with_presence(column, presence.as_deref());
+        
+        let owned_nullable_column = OwnedNullableColumn::from(&nullable_column);
+        
+        assert_eq!(owned_nullable_column.len(), 3);
+        assert!(owned_nullable_column.is_nullable());
+        assert!(!owned_nullable_column.is_null(0));
+        assert!(owned_nullable_column.is_null(1));
+        assert!(!owned_nullable_column.is_null(2));
     }
 }
