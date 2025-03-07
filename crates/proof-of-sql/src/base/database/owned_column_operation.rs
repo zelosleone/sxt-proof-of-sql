@@ -97,6 +97,14 @@ impl<S: Scalar> OwnedColumn<S> {
 }
 
 impl<S: Scalar> OwnedNullableColumn<S> {
+    /// Performs an element-wise logical NOT operation on a nullable column.
+    /// 
+    /// For boolean columns, this inverts each boolean value while preserving null values.
+    /// For non-boolean columns, returns an error.
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with inverted boolean values
+    /// * `Err(ColumnOperationError)` - If the column is not of boolean type
     pub fn element_wise_not(&self) -> ColumnOperationResult<Self> {
         let values = self.values.element_wise_not()?;
         
@@ -106,6 +114,19 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         })
     }
 
+    /// Performs an element-wise logical AND operation between two nullable columns.
+    /// 
+    /// The operation follows SQL's three-valued logic for NULL values:
+    /// - If either operand is NULL, the result is NULL (unless one operand is FALSE)
+    /// - If both operands are non-NULL, performs regular boolean AND
+    /// - If one operand is FALSE and the other is NULL, the result is FALSE
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to AND with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the AND results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or are not boolean type
     pub fn element_wise_and(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -180,6 +201,19 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise logical OR operation between two nullable columns.
+    /// 
+    /// The operation follows SQL's three-valued logic for NULL values:
+    /// - If either operand is NULL, the result is NULL (unless one operand is TRUE)
+    /// - If both operands are non-NULL, performs regular boolean OR
+    /// - If one operand is TRUE and the other is NULL, the result is TRUE
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to OR with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the OR results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or are not boolean type
     pub fn element_wise_or(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -256,6 +290,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise equality comparison between two nullable columns.
+    /// 
+    /// The comparison follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular equality comparison
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to compare with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable boolean column with comparison results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
     pub fn element_wise_eq(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -296,6 +342,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise "less than" comparison between two nullable columns.
+    /// 
+    /// The comparison follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular less than comparison
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to compare with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable boolean column with comparison results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
     pub fn element_wise_lt(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -336,6 +394,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise "greater than" comparison between two nullable columns.
+    /// 
+    /// The comparison follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular greater than comparison
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to compare with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable boolean column with comparison results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
     pub fn element_wise_gt(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -376,6 +446,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise addition between two nullable columns.
+    /// 
+    /// The operation follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular addition
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to add
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the addition results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
     pub fn element_wise_add(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -416,6 +498,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise subtraction between two nullable columns.
+    /// 
+    /// The operation follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular subtraction
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to subtract
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the subtraction results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
     pub fn element_wise_sub(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -456,6 +550,18 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise multiplication between two nullable columns.
+    /// 
+    /// The operation follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular multiplication
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to multiply with
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the multiplication results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
     pub fn element_wise_mul(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
@@ -496,6 +602,19 @@ impl<S: Scalar> OwnedNullableColumn<S> {
         }
     }
 
+    /// Performs an element-wise division between two nullable columns.
+    /// 
+    /// The operation follows SQL's NULL handling:
+    /// - If either operand is NULL, the result is NULL
+    /// - If both operands are non-NULL, performs regular division
+    /// - If the divisor is zero, returns an error
+    /// 
+    /// # Arguments
+    /// * `rhs` - The right-hand side column to divide by
+    /// 
+    /// # Returns
+    /// * `Ok(Self)` - A new nullable column with the division results
+    /// * `Err(ColumnOperationError)` - If columns have different lengths, are not numeric types, or if division by zero occurs
     pub fn element_wise_div(&self, rhs: &Self) -> ColumnOperationResult<Self> {
         if self.values.len() != rhs.values.len() {
             return Err(ColumnOperationError::DifferentColumnLength {
