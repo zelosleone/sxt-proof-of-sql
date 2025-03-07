@@ -90,7 +90,6 @@ opt-level = 3
 
 
 [profile.ci-test]
-inherits = "test"
-opt-level = 3
+opt-level = 2
 lto = "thin"
 codegen-units = 4
