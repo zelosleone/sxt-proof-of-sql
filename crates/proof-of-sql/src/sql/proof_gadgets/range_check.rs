@@ -21,17 +21,14 @@
 //! * Batch Inversion: Inversions of large vectors are computationally expensive
 //! * Parallelization: Single-threaded execution of these operations is a performance bottleneck
 use crate::{
-    base::{
-        proof::ProofSizeMismatch,
-        scalar::Scalar,
-        slice_ops::{self, slice_cast_unchecked},
-    },
+    base::{proof::ProofSizeMismatch, scalar::Scalar, slice_ops},
     sql::proof::{
         FinalRoundBuilder, FirstRoundBuilder, SumcheckSubpolynomialType, VerificationBuilder,
     },
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use bumpalo::Bump;
+use bytemuck::cast_slice;
 use core::iter::repeat_with;
 use tracing::{span, Level};
 
@@ -178,9 +175,8 @@ fn decompose_scalars_to_words<'a, T, S: Scalar + 'a>(
 {
     for (i, scalar) in column_data.iter().enumerate() {
         let scalar_array: [u64; 4] = (*scalar).into().into();
-        // Convert the [u64; 4] into a slice of bytes using unsafe cast
-        let scalar_bytes = unsafe { slice_cast_unchecked::<u64, u8>(&scalar_array) };
-        let scalar_bytes = &scalar_bytes[..31];
+        // Convert the [u64; 4] into a slice of bytes
+        let scalar_bytes = &cast_slice::<u64, u8>(&scalar_array)[..31];
 
         // Zip the "columns" and the scalar bytes so we can write them directly
         for (column, &byte) in word_columns[..31].iter_mut().zip(scalar_bytes) {

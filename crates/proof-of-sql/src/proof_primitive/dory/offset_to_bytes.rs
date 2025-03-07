@@ -57,7 +57,6 @@ impl OffsetToBytes<8> for u64 {
 
 impl OffsetToBytes<32> for [u64; 4] {
     fn offset_to_bytes(&self) -> [u8; 32] {
-        // Safe because [u64; 4] and [u8; 32] have the same size and alignment
-        unsafe { core::mem::transmute(*self) }
+        bytemuck::cast(*self)
     }
 }

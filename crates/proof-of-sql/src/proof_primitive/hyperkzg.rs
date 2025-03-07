@@ -64,9 +64,8 @@ impl From<&G1Affine> for HyperKZGCommitment {
 }
 impl From<&BNScalar> for NovaScalar {
     fn from(value: &BNScalar) -> Self {
-        // Safe because we know [u64; 4] and [u8; 32] have compatible memory layouts
-        let bytes: [u8; 32] = unsafe { core::mem::transmute::<[u64; 4], [u8; 32]>(value.into()) };
-        ff::PrimeField::from_repr_vartime(bytes.into()).unwrap()
+        ff::PrimeField::from_repr_vartime(bytemuck::cast::<[u64; 4], [u8; 32]>(value.into()).into())
+            .unwrap()
     }
 }
 impl Mul<&HyperKZGCommitment> for BNScalar {

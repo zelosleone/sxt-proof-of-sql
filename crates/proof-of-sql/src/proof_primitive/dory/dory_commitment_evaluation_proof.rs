@@ -8,7 +8,6 @@ use super::{
 use crate::{
     base::{commitment::CommitmentEvaluationProof, proof::Transcript},
     utils::log,
-    base::slice_ops::slice_cast_unchecked,
 };
 use snafu::Snafu;
 
@@ -52,8 +51,8 @@ impl CommitmentEvaluationProof for DoryEvaluationProof {
             // Note: this will always result in a verification error.
             return DoryMessages::default();
         }
-        let a: &[F] = unsafe { slice_cast_unchecked(a) };
-        let b_point: &[F] = unsafe { slice_cast_unchecked(b_point) };
+        let a: &[F] = bytemuck::TransparentWrapper::peel_slice(a);
+        let b_point: &[F] = bytemuck::TransparentWrapper::peel_slice(b_point);
         let prover_setup = setup.prover_setup();
         let nu = compute_nu(b_point.len(), setup.sigma());
         if nu > prover_setup.max_nu {
@@ -104,7 +103,7 @@ impl CommitmentEvaluationProof for DoryEvaluationProof {
                 offset: generators_offset,
             });
         }
-        let b_point: &[F] = unsafe { slice_cast_unchecked(b_point) };
+        let b_point: &[F] = bytemuck::TransparentWrapper::peel_slice(b_point);
         let verifier_setup = setup.verifier_setup();
         let mut messages = self.clone();
         let nu = compute_nu(b_point.len(), setup.sigma());

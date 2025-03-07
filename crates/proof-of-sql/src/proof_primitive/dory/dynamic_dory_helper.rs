@@ -3,12 +3,12 @@ use super::{
     ProverSetup, F,
 };
 use crate::{
-    base::{commitment::CommittableColumn, slice_ops::{slice_cast, slice_cast_unchecked}},
+    base::{commitment::CommittableColumn, slice_ops::slice_cast},
     proof_primitive::{
         dory::DoryScalar,
         dynamic_matrix_utils::{
             matrix_structure::row_and_column_from_index,
-            standard_basis_helper::{fold_dynamic_standard_basis_tensors},
+            standard_basis_helper::fold_dynamic_standard_basis_tensors,
         },
     },
 };
@@ -16,6 +16,8 @@ use alloc::{vec, vec::Vec};
 use ark_ff::{AdditiveGroup, Field};
 #[cfg(feature = "blitzar")]
 use blitzar::compute::ElementP2;
+#[cfg(feature = "blitzar")]
+use bytemuck::TransparentWrapper;
 use itertools::{Itertools, __std_iter::repeat};
 
 /// Compute the evaluations of the columns of the matrix M that is derived from `a`.
@@ -60,11 +62,7 @@ pub(super) fn compute_dynamic_T_vec_prime(
     nu: usize,
     prover_setup: &ProverSetup,
 ) -> Vec<G1Affine> {
-    // Safe because F and DoryScalar have the same memory layout
-    let a_col = unsafe {
-        let a_slice = slice_cast_unchecked::<F, DoryScalar>(a);
-        CommittableColumn::from(a_slice)
-    };
+    let a_col = CommittableColumn::from(TransparentWrapper::wrap_slice(a) as &[DoryScalar]);
 
     let (blitzar_output_bit_table, blitzar_output_length_table, blitzar_scalars) =
         create_blitzar_metadata_tables(&[a_col], 0);
@@ -117,23 +115,12 @@ pub(super) fn fold_dynamic_tensors(state: &ExtendedVerifierState) -> (F, F) {
                 - F::ONE
         })
         .collect_vec();
-        
-    // Use unsafe cast to convert the slice of F to a slice of DoryScalar
-    let standard_basis_point_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&standard_basis_point) };
-    let alphas_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&state.alphas) };
-    let alpha_invs_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&state.alpha_invs) };
-    
-    let (lo_dory, hi_dory) = fold_dynamic_standard_basis_tensors::<DoryScalar>(
-        standard_basis_point_dory,
-        alphas_dory,
-        alpha_invs_dory,
+    let (lo_fold, hi_fold) = fold_dynamic_standard_basis_tensors(
+        bytemuck::TransparentWrapper::wrap_slice(&standard_basis_point) as &[DoryScalar],
+        bytemuck::TransparentWrapper::wrap_slice(&state.alphas) as &[DoryScalar],
+        bytemuck::TransparentWrapper::wrap_slice(&state.alpha_invs) as &[DoryScalar],
     );
-    
-    // Convert the resulting DoryScalar values back to F via transmute
-    let lo_fold: F = unsafe { core::mem::transmute(lo_dory) };
-    let hi_fold: F = unsafe { core::mem::transmute(hi_dory) };
-    
-    (lo_fold * lo_inv_prod, hi_fold * hi_inv_prod)
+    (lo_fold.0 * lo_inv_prod, hi_fold.0 * hi_inv_prod)
 }
 
 #[cfg(test)]
@@ -161,16 +148,17 @@ mod tests {
                 .take(nu)
                 .collect_vec();
 
-            // Use unsafe cast to convert F slice to DoryScalar slice for compute_dynamic_vecs
-            let point_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&point) };
-            let (mut lo_vec, mut hi_vec) = compute_dynamic_vecs(point_dory);
-            
-            // Use unsafe cast to convert F slices to DoryScalar slices for naive_fold
-            let alphas_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&alphas) };
-            let alpha_invs_dory: &[DoryScalar] = unsafe { slice_cast_unchecked(&alpha_invs) };
-            
-            naive_fold(&mut lo_vec, &alphas_dory);
-            naive_fold(&mut hi_vec, &alpha_invs_dory);
+            let (mut lo_vec, mut hi_vec) = compute_dynamic_vecs(
+                bytemuck::TransparentWrapper::wrap_slice(&point) as &[DoryScalar],
+            );
+            naive_fold(
+                &mut lo_vec,
+                bytemuck::TransparentWrapper::wrap_slice(&alphas) as &[DoryScalar],
+            );
+            naive_fold(
+                &mut hi_vec,
+                bytemuck::TransparentWrapper::wrap_slice(&alpha_invs) as &[DoryScalar],
+            );
 
             let state = ExtendedVerifierState {
                 s1_tensor: point,
@@ -189,8 +177,8 @@ mod tests {
             };
             let (lo_fold, hi_fold) = fold_dynamic_tensors(&state);
 
-            assert_eq!(lo_fold, F::from(lo_vec[0].0));
-            assert_eq!(hi_fold, F::from(hi_vec[0].0));
+            assert_eq!(lo_fold, lo_vec[0].0);
+            assert_eq!(hi_fold, hi_vec[0].0);
         }
     }
 

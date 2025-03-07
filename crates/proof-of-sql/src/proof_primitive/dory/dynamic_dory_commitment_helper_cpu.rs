@@ -1,12 +1,13 @@
-use super::{pairings, DoryScalar, DynamicDoryCommitment, G1Projective, ProverSetup, GT, F};
+use super::{pairings, DoryScalar, DynamicDoryCommitment, G1Projective, ProverSetup, GT};
 use crate::{
-    base::{commitment::CommittableColumn, if_rayon, slice_ops::slice_cast_unchecked},
+    base::{commitment::CommittableColumn, if_rayon, slice_ops::slice_cast},
     proof_primitive::dynamic_matrix_utils::matrix_structure::{
         full_width_of_row, row_and_column_from_index, row_start_index,
     },
 };
 use alloc::vec::Vec;
 use ark_ec::VariableBaseMSM;
+use bytemuck::TransparentWrapper;
 use num_traits::Zero;
 #[cfg(feature = "rayon")]
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -54,23 +55,10 @@ where
         } else {
             (0..width, row_start - offset..width + row_start - offset)
         };
-        
-        // Fast path for types that can be directly reinterpreted as F
-        // This avoids the double conversion and memory allocation
-        if std::any::TypeId::of::<T>() == std::any::TypeId::of::<DoryScalar>() {
-            // Safe because we know T is DoryScalar
-            let scalars = unsafe {
-                slice_cast_unchecked::<_, F>(&column[column_range])
-            };
-            G1Projective::msm_unchecked(&Gamma_1[gamma_range], scalars)
-        } else {
-            // Fallback to the original implementation for other types
-            let scalars: Vec<F> = column[column_range]
-                .iter()
-                .map(|v| Into::<DoryScalar>::into(v).0)
-                .collect();
-            G1Projective::msm_unchecked(&Gamma_1[gamma_range], &scalars)
-        }
+        G1Projective::msm_unchecked(
+            &Gamma_1[gamma_range],
+            TransparentWrapper::peel_slice(&slice_cast::<_, DoryScalar>(&column[column_range])),
+        )
     })
     .collect();
 

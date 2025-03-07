@@ -3,7 +3,7 @@ use super::{
     pairings, DynamicDoryCommitment, G1Affine, ProverSetup,
 };
 use crate::{
-    base::{commitment::CommittableColumn, if_rayon},
+    base::{commitment::CommittableColumn, if_rayon, slice_ops::slice_cast},
     proof_primitive::dynamic_matrix_utils::matrix_structure::row_and_column_from_index,
     utils::log,
 };
@@ -62,17 +62,9 @@ pub(super) fn compute_dynamic_dory_commitments(
         blitzar_scalars.as_slice(),
     );
 
-    // Directly reinterpret the memory as G1Affine without copying
-    // This is safe because ElementP2<ark_bls12_381::g1::Config> has the same memory layout as G1Affine
-    let all_sub_commits = unsafe {
-        let ptr = blitzar_sub_commits.as_ptr() as *const G1Affine;
-        let len = blitzar_sub_commits.len();
-        core::slice::from_raw_parts(ptr, len)
-    };
-    
-    // Convert slice to Vec for signed_commits
-    let all_sub_commits_vec: Vec<G1Affine> = all_sub_commits.to_vec();
-    let signed_sub_commits = signed_commits(&all_sub_commits_vec, committable_columns);
+    // Modify the sub commits to include the signed offset.
+    let all_sub_commits: Vec<G1Affine> = slice_cast(&blitzar_sub_commits);
+    let signed_sub_commits = signed_commits(&all_sub_commits, committable_columns);
     assert!(
         signed_sub_commits.len() % committable_columns.len() == 0,
         "Invalid number of sub commits"

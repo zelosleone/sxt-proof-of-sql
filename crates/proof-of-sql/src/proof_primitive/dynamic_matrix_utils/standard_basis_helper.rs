@@ -160,7 +160,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        base::{polynomial::compute_evaluation_vector, scalar::MontScalar, slice_ops::slice_cast_unchecked},
+        base::{polynomial::compute_evaluation_vector, scalar::MontScalar},
         proof_primitive::{
             dory::DoryScalar,
             dynamic_matrix_utils::{
@@ -377,7 +377,7 @@ pub(crate) mod tests {
             lo_vec[0] = alpha;
             hi_vec[0] = beta;
             compute_dynamic_standard_basis_vecs(
-                unsafe { slice_cast_unchecked(&point) },
+                bytemuck::TransparentWrapper::wrap_slice(&point) as &[DoryScalar],
                 &mut lo_vec,
                 &mut hi_vec,
             );

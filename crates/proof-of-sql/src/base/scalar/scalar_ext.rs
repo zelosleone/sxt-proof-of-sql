@@ -80,6 +80,7 @@ mod tests {
         base::scalar::{test_scalar::TestScalar, Curve25519Scalar, MontScalar},
         proof_primitive::dory::DoryScalar,
     };
+    use bytemuck::cast;
 
     #[test]
     fn we_can_get_zero_from_zero_bytes() {
@@ -97,8 +98,7 @@ mod tests {
 
         let scalar_from_bytes: DoryScalar = DoryScalar::from_byte_slice_via_hash(b"abc");
 
-        // Safe because we know the sizes match and the memory layout is compatible
-        let limbs_native: [u64; 4] = unsafe { core::mem::transmute(expected) };
+        let limbs_native: [u64; 4] = cast(expected);
         let limbs_le = [
             u64::from_le_bytes(limbs_native[0].to_le_bytes()),
             u64::from_le_bytes(limbs_native[1].to_le_bytes()),

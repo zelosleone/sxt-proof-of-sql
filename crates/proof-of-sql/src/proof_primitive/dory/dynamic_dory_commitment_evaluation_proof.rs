@@ -8,7 +8,6 @@ use super::{
 use crate::{
     base::{commitment::CommitmentEvaluationProof, proof::Transcript},
     utils::log,
-    base::slice_ops::slice_cast_unchecked,
 };
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
@@ -54,8 +53,8 @@ impl CommitmentEvaluationProof for DynamicDoryEvaluationProof {
             // Note: this will always result in a verification error.
             return DynamicDoryEvaluationProof::default();
         }
-        let a: &[F] = unsafe { slice_cast_unchecked(a) };
-        let b_point: &[F] = unsafe { slice_cast_unchecked(b_point) };
+        let a: &[F] = bytemuck::TransparentWrapper::peel_slice(a);
+        let b_point: &[F] = bytemuck::TransparentWrapper::peel_slice(b_point);
         let nu = compute_dynamic_nu(b_point.len());
         if nu > setup.max_nu {
             return DynamicDoryEvaluationProof::default(); // Note: this will always result in a verification error.
@@ -105,7 +104,7 @@ impl CommitmentEvaluationProof for DynamicDoryEvaluationProof {
                 offset: generators_offset,
             });
         }
-        let b_point: &[F] = unsafe { slice_cast_unchecked(b_point) };
+        let b_point: &[F] = bytemuck::TransparentWrapper::peel_slice(b_point);
         let mut messages = self.0.clone();
         let nu = compute_dynamic_nu(b_point.len());
         if nu > setup.max_nu {

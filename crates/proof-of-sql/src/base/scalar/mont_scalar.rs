@@ -7,6 +7,7 @@ use alloc::{
 use ark_ff::{AdditiveGroup, BigInteger, Field, Fp, Fp256, MontBackend, MontConfig, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use bnum::types::U256;
+use bytemuck::TransparentWrapper;
 use core::{
     cmp::Ordering,
     fmt,
@@ -18,13 +19,12 @@ use core::{
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::base::slice_ops::slice_cast_unchecked;
 
+#[derive(CanonicalSerialize, CanonicalDeserialize, TransparentWrapper)]
 /// A wrapper struct around a `Fp256<MontBackend<T, 4>>` that can easily implement the `Scalar` trait.
 ///
 /// Using the `Scalar` trait rather than this type is encouraged to allow for easier switching of the underlying field.
 #[repr(transparent)]
-#[derive(CanonicalSerialize, CanonicalDeserialize)]
 pub struct MontScalar<T: MontConfig<4>>(pub Fp256<MontBackend<T, 4>>);
 
 // --------------------------------------------------------------------------------
@@ -653,8 +653,7 @@ where
             num_bigint::Sign::Plus
         };
         let value_abs: [u64; 4] = (if is_negative { -value } else { value }).into();
-        // Safe because u64 and u8 have compatible memory layouts and we're just reinterpreting the bytes
-        let bits: &[u8] = unsafe { slice_cast_unchecked(&value_abs) };
+        let bits: &[u8] = bytemuck::cast_slice(&value_abs);
         BigInt::from_bytes_le(sign, bits)
     }
 }
