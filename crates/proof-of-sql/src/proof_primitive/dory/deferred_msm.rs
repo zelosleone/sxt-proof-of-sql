@@ -4,6 +4,38 @@ use ark_ec::VariableBaseMSM;
 use core::ops::{Add, AddAssign, Mul, MulAssign};
 use itertools::Itertools;
 use num_traits::One;
+use super::{F, G1Affine};
+use core::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::hash::{Hash, Hasher};
+use blake3::Hasher as Blake3Hasher;
+use ark_serialize::CanonicalSerialize;
+
+// Global MSM cache with a LRU eviction policy
+lazy_static::lazy_static! {
+    static ref MSM_CACHE: Mutex<HashMap<u64, Vec<G1Affine>>> = Mutex::new(HashMap::new());
+    static ref CACHE_ENABLED: AtomicBool = AtomicBool::new(true);
+}
+
+pub fn compute_hash<T: CanonicalSerialize>(data: &T) -> u64 {
+    let mut hasher = Blake3Hasher::new();
+    let mut bytes = Vec::new();
+    data.serialize_compressed(&mut bytes).unwrap();
+    hasher.update(&bytes);
+    let hash = hasher.finalize();
+    let first_bytes = &hash.as_bytes()[0..8];
+    u64::from_le_bytes(first_bytes.try_into().unwrap())
+}
+
+pub fn enable_msm_cache(enabled: bool) {
+    CACHE_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
+pub fn clear_msm_cache() {
+    let mut cache = MSM_CACHE.lock().unwrap();
+    cache.clear();
+}
 
 #[derive(Debug, Clone)]
 /// A wrapper around a Multi-Scalar Multiplication (MSM) that defers the computation until the end.

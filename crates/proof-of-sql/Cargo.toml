@@ -61,6 +61,7 @@ tempfile = { workspace = true, optional = true }
 tiny-keccak = { workspace = true }
 tracing = { workspace = true, features = ["attributes"] }
 zerocopy = { workspace = true }
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 arrow-csv = { workspace = true }
