@@ -14,11 +14,12 @@ env:
   CARGO_TERM_COLOR: always
   BLITZAR_BACKEND: cpu
   # Add sccache for distributed caching (much faster than regular GitHub cache)
-  RUSTC_WRAPPER: sccache
   SCCACHE_GHA_ENABLED: "true"
   SCCACHE_CACHE_SIZE: "1G"
   SCCACHE_ERROR_LOG: /tmp/sccache_log.txt
-  # Global rust flags
+  # Use sccache by default (jobs can override this)
+  RUSTC_WRAPPER: sccache
+  # Global rust flags (jobs can override this)
   RUSTFLAGS: "-C target-feature=+crt-static"
 
 jobs:
@@ -252,6 +253,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -296,6 +299,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -317,9 +322,14 @@ jobs:
   udeps:
     name: Unused Dependencies
     runs-on: ubuntu-latest
+    env:
+      # Temporarily disable sccache for nightly toolchain
+      RUSTC_WRAPPER: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -342,9 +352,14 @@ jobs:
   foundrycheck: # Modified from the foundry book: https://book.getfoundry.sh/config/continuous-integration
     name: Foundry project
     runs-on: ubuntu-latest
+    env:
+      # Disable RUSTC_WRAPPER for foundry tools
+      RUSTC_WRAPPER: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
