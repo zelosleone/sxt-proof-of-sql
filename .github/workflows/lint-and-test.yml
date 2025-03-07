@@ -13,6 +13,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   BLITZAR_BACKEND: cpu
+  # Performance optimizations
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  CARGO_PROFILE_RELEASE_LTO: true
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
 
 jobs:
   # Run cargo check (with various feature permutations)
@@ -22,18 +27,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: |
           export DEBIAN_FRONTEND=non-interactive
@@ -44,46 +41,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang mold
       - name: Run cargo check (no features, exclude examples)
-        run: cargo check --no-default-features
+        run: cargo check --locked --no-default-features
       - name: Run cargo check (default features)
-        run: cargo check --all-targets
+        run: cargo check --locked --all-targets
       - name: Run cargo check (all features)
-        run: cargo check --all-targets --all-features
+        run: cargo check --locked --all-targets --all-features
       - name: Run cargo check (proof-of-sql) (no features)
-        run: cargo check -p proof-of-sql --no-default-features
+        run: cargo check --locked -p proof-of-sql --no-default-features
       - name: Run cargo check (proof-of-sql) (all features)
         run: |
-          cargo check -p proof-of-sql --all-features
-          cargo check -p proof-of-sql --all-targets --all-features
+          cargo check --locked -p proof-of-sql --all-features
+          cargo check --locked -p proof-of-sql --all-targets --all-features
       - name: Run cargo check (proof-of-sql) (just "test" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="test"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="test"
+          cargo check --locked -p proof-of-sql --no-default-features --features="test"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="test"
       - name: Run cargo check (proof-of-sql) (just "blitzar" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="blitzar"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="blitzar"
+          cargo check --locked -p proof-of-sql --no-default-features --features="blitzar"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="blitzar"
       - name: Run cargo check (proof-of-sql) (just "arrow" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="arrow"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="arrow"
+          cargo check --locked -p proof-of-sql --no-default-features --features="arrow"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="arrow"
       - name: Run cargo check (proof-of-sql) (just "rayon" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="rayon"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="rayon"
+          cargo check --locked -p proof-of-sql --no-default-features --features="rayon"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="rayon"
       - name: Run cargo check (proof-of-sql) (just "perf" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="perf"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="perf"
+          cargo check --locked -p proof-of-sql --no-default-features --features="perf"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="perf"
       - name: Run cargo check (proof-of-sql) (just "std" feature)
         run: |
-          cargo check -p proof-of-sql --no-default-features --features="std"
-          cargo check -p proof-of-sql --all-targets --no-default-features --features="std"
+          cargo check --locked -p proof-of-sql --no-default-features --features="std"
+          cargo check --locked -p proof-of-sql --all-targets --no-default-features --features="std"
       - name: Run cargo check (proof-of-sql-parser & proof-of-sql) with no_std target.
         run: |
           rustup target add thumbv7em-none-eabi
-          cargo check -p proof-of-sql-parser --target thumbv7em-none-eabi --no-default-features
-          cargo check -p proof-of-sql --target thumbv7em-none-eabi --no-default-features
+          cargo check --locked -p proof-of-sql-parser --target thumbv7em-none-eabi --no-default-features
+          cargo check --locked -p proof-of-sql --target thumbv7em-none-eabi --no-default-features
 
   test:
     name: Test Suite
@@ -91,18 +88,12 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
       - name: Install Dependencies
         run: |
           export DEBIAN_FRONTEND=non-interactive
@@ -113,25 +104,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang mold
       - name: Run cargo test
-        run: cargo test --all-features
+        run: cargo nextest run --locked --all-features
       - name: Install Foundry/forge for solidity tests
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run solidity tests (ignored by default)
-        run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored
+        run: cargo test --locked --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored
       - name: Run cargo test without rayon
-        run: cargo test --no-default-features --features="arrow blitzar"
+        run: cargo nextest run --locked --no-default-features --features="arrow blitzar"
       - name: Dry run cargo test (proof-of-sql) (test feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="test"
+        run: cargo test --locked -p proof-of-sql --no-run --no-default-features --features="test"
       - name: Dry run cargo test (proof-of-sql) (arrow feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="arrow"
+        run: cargo test --locked -p proof-of-sql --no-run --no-default-features --features="arrow"
       - name: Dry run cargo test (proof-of-sql) (blitzar feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="blitzar"
+        run: cargo test --locked -p proof-of-sql --no-run --no-default-features --features="blitzar"
       - name: Dry run cargo test (proof-of-sql) (std feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="std"
+        run: cargo test --locked -p proof-of-sql --no-run --no-default-features --features="std"
       - name: Run cargo test (proof primitives - Dory) (std feature only - i.e. not using blitzar)
         run: |
-            cargo test proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" && \
-            cargo test proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std"
+            cargo test --locked proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" && \
+            cargo test --locked proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std"
 
   examples:
       name: Run Examples (Heavy)
@@ -141,6 +132,8 @@ jobs:
           uses: actions/checkout@v3
         - name: Install stable toolchain
           run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
+        - name: Rust Cache
+          uses: Swatinem/rust-cache@v2
         - name: Install Dependencies
           run: |
             sudo apt-get update
@@ -150,21 +143,21 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y clang mold
         - name: Run hello_world example (With Blitzar)
-          run: cargo run --example hello_world --features="test"
+          run: cargo run --locked --example hello_world --features="test"
         - name: Run hello_world example (Without Blitzar and With Rayon)
-          run: cargo run --example hello_world --no-default-features --features="rayon test"
+          run: cargo run --locked --example hello_world --no-default-features --features="rayon test"
         - name: Run hello_world example (Without Blitzar and Without Rayon)
-          run: cargo run --example hello_world --no-default-features --features="test"
+          run: cargo run --locked --example hello_world --no-default-features --features="test"
         - name: Run space example
-          run: cargo run --example space
+          run: cargo run --locked --example space
         - name: Run dog breeds example
-          run: cargo run --example dog_breeds
+          run: cargo run --locked --example dog_breeds
         - name: Run wood types example
-          run: cargo run --example wood_types
+          run: cargo run --locked --example wood_types
         - name: Run posql_db example (With Blitzar)
-          run: bash crates/proof-of-sql/examples/posql_db/run_example.sh
+          run: bash crates/proof-of-sql/examples/posql_db/run_example.sh --locked
         - name: Run posql_db example (Without Blitzar)
-          run: bash crates/proof-of-sql/examples/posql_db/run_example.sh --no-default-features --features="rayon"
+          run: bash crates/proof-of-sql/examples/posql_db/run_example.sh --locked --no-default-features --features="rayon"
 
   clippy:
     name: Clippy
@@ -172,20 +165,12 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
           rustup component add clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: |
           export DEBIAN_FRONTEND=non-interactive
@@ -196,7 +181,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang mold
       - name: Run clippy
-        run: cargo cl -- -D warnings
+        run: cargo cl --locked -- -D warnings
 
   coverage:
     name: Code Coverage
@@ -204,16 +189,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install stable toolchain
+        run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -226,13 +205,13 @@ jobs:
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
       - name: Run Tests to Generate Coverage Data (All Features)
-        run: cargo llvm-cov --no-report --all-features --jobs $(nproc)
+        run: cargo llvm-cov --locked --no-report --all-features --jobs $(nproc)
       #- name: Run Tests to Generate Coverage Data (Rayon Only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="rayon"
+      #  run: cargo llvm-cov --locked --no-report --no-default-features --features="rayon"
       #- name: Run Tests to Generate Coverage Data (Blitzar Only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="blitzar"
+      #  run: cargo llvm-cov --locked --no-report --no-default-features --features="blitzar"
       #- name: Run Tests to Generate Coverage Data (std only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="std"
+      #  run: cargo llvm-cov --locked --no-report --no-default-features --features="std"
       - name: Generate Final LCOV Report (Merged Coverage)
         run: cargo llvm-cov report --lcov --output-path lcov.info
       - name: Upload Coverage to Codecov
@@ -269,6 +248,8 @@ jobs:
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install nightly
           cargo +nightly install cargo-udeps --locked
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
       - name: Run cargo udeps
         run: cargo +nightly udeps --all-targets
 
