@@ -64,6 +64,7 @@ zerocopy = { workspace = true }
 
 [dev-dependencies]
 arrow-csv = { workspace = true }
+ark-ec = { workspace = true }
 criterion = { workspace = true, features = ["html_reports"] }
 merlin = { workspace = true }
 opentelemetry = { workspace = true }
