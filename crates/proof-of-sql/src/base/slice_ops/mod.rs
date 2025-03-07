@@ -4,7 +4,7 @@
 //! Instead, it will simply truncate the longer one, which is equivalent to multiply each extra element by zero before summing.
 
 #[cfg(any(feature = "rayon", test))]
-pub const MIN_RAYON_LEN: usize = 1 << 8;
+pub const MIN_RAYON_LEN: usize = 1 << 12;
 
 mod add_const;
 #[cfg(test)]
