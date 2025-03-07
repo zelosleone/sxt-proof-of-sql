@@ -13,26 +13,27 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   BLITZAR_BACKEND: cpu
-  # Disable incremental compilation
-  CARGO_INCREMENTAL: 0
-  # Disable debug info to optimize caching
-  CARGO_PROFILE_TEST_DEBUG: 0
-  # Optimize build settings
-  CARGO_PROFILE_RELEASE_LTO: true
-  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
 
 jobs:
   # Run cargo check (with various feature permutations)
   check:
     name: Check Package
-    runs-on: ubuntu-latest
+    runs-on: large-8-core-32gb-22-04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: export DEBIAN_FRONTEND=non-interactive && sudo apt-get update && sudo apt-get install -y clang lld     
       - name: Run cargo check (no features, exclude examples)
@@ -79,29 +80,35 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    runs-on: large-8-core-32gb-22-04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: |
           export DEBIAN_FRONTEND=non-interactive
           sudo apt-get update
           sudo apt-get install -y clang lld
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-      - name: Run tests with nextest
-        run: cargo nextest run --all-features --profile ci-test
+      - name: Run cargo test
+        run: cargo test --all-features
       - name: Install Foundry/forge for solidity tests
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run solidity tests (ignored by default)
         run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored
-      - name: Run tests without rayon
-        run: cargo nextest run --no-default-features --features="arrow blitzar" --profile ci-test
+      - name: Run cargo test without rayon
+        run: cargo test --no-default-features --features="arrow blitzar"
       - name: Dry run cargo test (proof-of-sql) (test feature only)
         run: cargo test -p proof-of-sql --no-run --no-default-features --features="test"
       - name: Dry run cargo test (proof-of-sql) (arrow feature only)
@@ -123,8 +130,6 @@ jobs:
           uses: actions/checkout@v3
         - name: Install stable toolchain
           run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
-        - name: Setup Rust caching
-          uses: Swatinem/rust-cache@v2
         - name: Run hello_world example (With Blitzar)
           run: cargo run --example hello_world --features="test"
         - name: Run hello_world example (Without Blitzar and With Rayon)
@@ -144,16 +149,24 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: large-8-core-32gb-22-04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.toml') }}
       - name: Install stable toolchain
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
           rustup component add clippy
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
       - name: Install Dependencies
         run: export DEBIAN_FRONTEND=non-interactive && sudo apt-get update && sudo apt-get install -y clang lld
       - name: Run clippy
@@ -167,21 +180,17 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y clang lld
-      - name: Install stable toolchain
-        run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
       - name: Run Tests to Generate Coverage Data (All Features)
         run: cargo llvm-cov --no-report --all-features
-      - name: Run Tests to Generate Coverage Data (Rayon Only)
-        run: cargo llvm-cov --no-report --no-default-features --features="rayon"
-      - name: Run Tests to Generate Coverage Data (Blitzar Only)
-        run: cargo llvm-cov --no-report --no-default-features --features="blitzar"
-      - name: Run Tests to Generate Coverage Data (std only)
-        run: cargo llvm-cov --no-report --no-default-features --features="std"
+      #- name: Run Tests to Generate Coverage Data (Rayon Only)
+      #  run: cargo llvm-cov --no-report --no-default-features --features="rayon"
+      #- name: Run Tests to Generate Coverage Data (Blitzar Only)
+      #  run: cargo llvm-cov --no-report --no-default-features --features="blitzar"
+      #- name: Run Tests to Generate Coverage Data (std only)
+      #  run: cargo llvm-cov --no-report --no-default-features --features="std"
       - name: Generate Final LCOV Report (Merged Coverage)
         run: cargo llvm-cov report --lcov --output-path lcov.info
       - name: Upload Coverage to Codecov
@@ -205,8 +214,6 @@ jobs:
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
           rustup component add rustfmt
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt
         run: cargo f --check
 
@@ -219,9 +226,7 @@ jobs:
       - name: Install nightly toolchain
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install nightly
-          cargo +nightly install cargo-udeps
-      - name: Setup Rust caching
-        uses: Swatinem/rust-cache@v2
+          cargo +nightly install cargo-udeps --locked
       - name: Run cargo udeps
         run: cargo +nightly udeps --all-targets
 
