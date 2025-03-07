@@ -13,15 +13,35 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   BLITZAR_BACKEND: cpu
+  # Add sccache for distributed caching (much faster than regular GitHub cache)
+  RUSTC_WRAPPER: sccache
+  SCCACHE_GHA_ENABLED: "true"
+  SCCACHE_CACHE_SIZE: "1G"
+  SCCACHE_ERROR_LOG: /tmp/sccache_log.txt
+  # Global rust flags
+  RUSTFLAGS: "-C target-feature=+crt-static"
 
 jobs:
   # Run cargo check (with various feature permutations)
   check:
     name: Check Package
     runs-on: large-8-core-32gb-22-04
+    env:
+      # Enable incremental compilation
+      CARGO_INCREMENTAL: 1
+      # Optimize compilation units in parallel
+      CARGO_BUILD_JOBS: 16
+      # Only build dependencies once
+      CARGO_TERM_VERBOSE: false
+      # Compiler optimizations for faster checks
+      RUSTFLAGS: "-C codegen-units=16"
+      # Use minimal optimization for debug builds
+      CARGO_PROFILE_DEV_OPT_LEVEL: 0
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -38,6 +58,9 @@ jobs:
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
       - name: Install Dependencies
         run: export DEBIAN_FRONTEND=non-interactive && sudo apt-get update && sudo apt-get install -y clang lld     
+      # Prepare dependencies first for better caching
+      - name: Prepare dependencies (all features)
+        run: cargo check --all-features --all-targets --no-deps
       - name: Run cargo check (no features, exclude examples)
         run: cargo check --no-default-features
       - name: Run cargo check (default features)
@@ -83,9 +106,23 @@ jobs:
   test:
     name: Test Suite
     runs-on: large-8-core-32gb-22-04
+    env:
+      # Enable incremental compilation
+      CARGO_INCREMENTAL: 1
+      # Optimize compilation units in parallel
+      CARGO_BUILD_JOBS: 16
+      # Only build dependencies once
+      CARGO_TERM_VERBOSE: false
+      # Compiler optimizations for testing
+      RUSTFLAGS: "-C codegen-units=16 -C target-cpu=native"
+      # Use minimal optimization for debug builds
+      CARGO_PROFILE_DEV_OPT_LEVEL: 0
+      CARGO_PROFILE_TEST_OPT_LEVEL: 0
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -105,8 +142,11 @@ jobs:
           export DEBIAN_FRONTEND=non-interactive
           sudo apt-get update
           sudo apt-get install -y clang lld
+      # Compile dependencies separately first to better utilize caching
+      - name: Prepare dependencies
+        run: cargo test --all-features --no-run
       - name: Run cargo test
-        run: cargo test --all-features
+        run: cargo test --all-features -- --nocapture
       - name: Install Foundry/forge for solidity tests
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run solidity tests (ignored by default)
@@ -129,9 +169,22 @@ jobs:
   examples:
       name: Run Examples (Heavy)
       runs-on: ubuntu-latest
+      env:
+        # Enable incremental compilation
+        CARGO_INCREMENTAL: 1
+        # Optimize compilation units in parallel
+        CARGO_BUILD_JOBS: 16
+        # Only build dependencies once
+        CARGO_TERM_VERBOSE: false
+        # Compiler optimizations
+        RUSTFLAGS: "-C codegen-units=16"
+        # Use minimal optimization for debug builds
+        CARGO_PROFILE_DEV_OPT_LEVEL: 1
       steps:
         - name: Checkout sources
           uses: actions/checkout@v3
+        - name: Install sccache
+          uses: mozilla-actions/sccache-action@v0.0.3
         - name: Cache
           uses: actions/cache@v3
           with:
@@ -146,6 +199,9 @@ jobs:
               ${{ runner.os }}-cargo-
         - name: Install stable toolchain
           run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
+        # Prepare dependencies once for all examples
+        - name: Prepare dependencies
+          run: cargo build --examples --features="test"
         - name: Run hello_world example (With Blitzar)
           run: cargo run --example hello_world --features="test"
         - name: Run hello_world example (Without Blitzar and With Rayon)
