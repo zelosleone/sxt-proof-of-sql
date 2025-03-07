@@ -88,6 +88,9 @@ sqlparser = { git = "https://github.com/tlovell-sxt/datafusion-sqlparser-rs.git"
 [profile.test]
 opt-level = 3
 
-[profile.test.package."*"]
-lto = { value = "thin", condition = { env = { "CI" = "true" } } }
-codegen-units = { value = 4, condition = { env = { "CI" = "true" } } }
+
+[profile.ci-test]
+inherits = "test"
+opt-level = 3
+lto = "thin"
+codegen-units = 4
