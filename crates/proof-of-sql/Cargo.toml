@@ -65,12 +65,15 @@ zerocopy = { workspace = true }
 [dev-dependencies]
 arrow-csv = { workspace = true }
 ark-ec = { workspace = true }
+ark-poly = { workspace = true }
+ark-ff = { workspace = true }
 criterion = { workspace = true, features = ["html_reports"] }
 merlin = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry-jaeger = { workspace = true }
 rand = { workspace = true, default-features = false, features = ["std"] }
 rand_core = { workspace = true, default-features = false }
+rayon = { workspace = true, optional = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
