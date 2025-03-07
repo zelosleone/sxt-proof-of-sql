@@ -38,13 +38,11 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=non-interactive
           sudo apt-get update
-          # Install clang and mold using apt
-          sudo apt-get install -y clang
-          sudo bash -c "cat > /etc/apt/sources.list.d/mold.list << 'EOF'
-          deb [trusted=yes] https://apt.fury.io/mold/ /
-          EOF"
+          # Enable universe repository where mold is located
+          sudo add-apt-repository universe
+          # Install clang and mold from Ubuntu repositories
           sudo apt-get update
-          sudo apt-get install -y mold
+          sudo apt-get install -y clang mold
       - name: Run cargo check (no features, exclude examples)
         run: cargo check --no-default-features
       - name: Run cargo check (default features)
@@ -109,13 +107,11 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=non-interactive
           sudo apt-get update
-          # Install clang and mold using apt
-          sudo apt-get install -y clang
-          sudo bash -c "cat > /etc/apt/sources.list.d/mold.list << 'EOF'
-          deb [trusted=yes] https://apt.fury.io/mold/ /
-          EOF"
+          # Enable universe repository where mold is located
+          sudo add-apt-repository universe
+          # Install clang and mold from Ubuntu repositories
           sudo apt-get update
-          sudo apt-get install -y mold
+          sudo apt-get install -y clang mold
       - name: Run cargo test
         run: cargo test --all-features
       - name: Install Foundry/forge for solidity tests
@@ -148,13 +144,11 @@ jobs:
         - name: Install Dependencies
           run: |
             sudo apt-get update
-            # Install clang and mold using apt
-            sudo apt-get install -y clang
-            sudo bash -c "cat > /etc/apt/sources.list.d/mold.list << 'EOF'
-            deb [trusted=yes] https://apt.fury.io/mold/ /
-            EOF"
+            # Enable universe repository where mold is located
+            sudo add-apt-repository universe
+            # Install clang and mold from Ubuntu repositories
             sudo apt-get update
-            sudo apt-get install -y mold
+            sudo apt-get install -y clang mold
         - name: Run hello_world example (With Blitzar)
           run: cargo run --example hello_world --features="test"
         - name: Run hello_world example (Without Blitzar and With Rayon)
@@ -196,13 +190,11 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=non-interactive
           sudo apt-get update
-          # Install clang and mold using apt
-          sudo apt-get install -y clang
-          sudo bash -c "cat > /etc/apt/sources.list.d/mold.list << 'EOF'
-          deb [trusted=yes] https://apt.fury.io/mold/ /
-          EOF"
+          # Enable universe repository where mold is located
+          sudo add-apt-repository universe
+          # Install clang and mold from Ubuntu repositories
           sudo apt-get update
-          sudo apt-get install -y mold
+          sudo apt-get install -y clang mold
       - name: Run clippy
         run: cargo cl -- -D warnings
 
@@ -225,13 +217,11 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          # Install clang and mold using apt
-          sudo apt-get install -y clang
-          sudo bash -c "cat > /etc/apt/sources.list.d/mold.list << 'EOF'
-          deb [trusted=yes] https://apt.fury.io/mold/ /
-          EOF"
+          # Enable universe repository where mold is located
+          sudo add-apt-repository universe
+          # Install clang and mold from Ubuntu repositories
           sudo apt-get update
-          sudo apt-get install -y mold
+          sudo apt-get install -y clang mold
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
