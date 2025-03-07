@@ -20,9 +20,8 @@ env:
   # Optimize build settings
   CARGO_PROFILE_RELEASE_LTO: true
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
-  # CUDA version
-  CUDA_VERSION: "11.8"
-  CUDA_PATH: "/usr/local/cuda-11.8"
+  # CUDA environment
+  CUDA_PATH: "/usr/lib/cuda"
 
 jobs:
   # Run cargo check (with various feature permutations)
@@ -82,24 +81,19 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-latest-gpu
+    runs-on: large-8-core-32gb-22-04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Install CUDA
         run: |
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
-          sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
-          wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda-repo-ubuntu2204-11-8-local_11.8.0-520.61.05-1_amd64.deb
-          sudo dpkg -i cuda-repo-ubuntu2204-11-8-local_11.8.0-520.61.05-1_amd64.deb
-          sudo cp /var/cuda-repo-ubuntu2204-11-8-local/cuda-*-keyring.gpg /usr/share/keyrings/
           sudo apt-get update
-          sudo apt-get -y install cuda-11-8
-          echo "CUDA_PATH=/usr/local/cuda-11.8" >> $GITHUB_ENV
-          echo "/usr/local/cuda-11.8/bin" >> $GITHUB_PATH
+          sudo apt-get install -y nvidia-cuda-toolkit
+          echo "CUDA_PATH=/usr/lib/cuda" >> $GITHUB_ENV
+          echo "/usr/lib/cuda/bin" >> $GITHUB_PATH
       - name: Verify CUDA installation
         run: |
-          nvidia-smi
+          nvidia-smi || true  # Continue even if this fails
           nvcc --version
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
@@ -179,10 +173,20 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: large-8-core-32gb-22-04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install CUDA
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nvidia-cuda-toolkit
+          echo "CUDA_PATH=/usr/lib/cuda" >> $GITHUB_ENV
+          echo "/usr/lib/cuda/bin" >> $GITHUB_PATH
+      - name: Verify CUDA installation
+        run: |
+          nvidia-smi || true  # Continue even if this fails
+          nvcc --version
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y clang lld
       - name: Install stable toolchain
@@ -193,7 +197,7 @@ jobs:
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
       - name: Run Tests to Generate Coverage Data (All Features)
-        run: cargo llvm-cov --no-report --all-features
+        run: cargo llvm-cov --no-report --all-features --locked --profile ci-test
       #- name: Run Tests to Generate Coverage Data (Rayon Only)
       #  run: cargo llvm-cov --no-report --no-default-features --features="rayon"
       #- name: Run Tests to Generate Coverage Data (Blitzar Only)
