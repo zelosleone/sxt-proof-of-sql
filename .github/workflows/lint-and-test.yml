@@ -12,7 +12,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  BLITZAR_BACKEND: cuda
+  BLITZAR_BACKEND: cpu
   # Disable incremental compilation
   CARGO_INCREMENTAL: 0
   # Disable debug info to optimize caching
@@ -20,8 +20,6 @@ env:
   # Optimize build settings
   CARGO_PROFILE_RELEASE_LTO: true
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
-  # CUDA environment
-  CUDA_PATH: "/usr/lib/cuda"
 
 jobs:
   # Run cargo check (with various feature permutations)
@@ -85,16 +83,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install CUDA
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nvidia-cuda-toolkit
-          echo "CUDA_PATH=/usr/lib/cuda" >> $GITHUB_ENV
-          echo "/usr/lib/cuda/bin" >> $GITHUB_PATH
-      - name: Verify CUDA installation
-        run: |
-          nvidia-smi || true  # Continue even if this fails
-          nvcc --version
       - name: Install stable toolchain
         run: curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install
       - name: Setup Rust caching
@@ -129,7 +117,7 @@ jobs:
 
   examples:
       name: Run Examples (Heavy)
-      runs-on: ubuntu-latest
+      runs-on: large-8-core-32gb-22-04
       steps:
         - name: Checkout sources
           uses: actions/checkout@v3
@@ -177,16 +165,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install CUDA
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nvidia-cuda-toolkit
-          echo "CUDA_PATH=/usr/lib/cuda" >> $GITHUB_ENV
-          echo "/usr/lib/cuda/bin" >> $GITHUB_PATH
-      - name: Verify CUDA installation
-        run: |
-          nvidia-smi || true  # Continue even if this fails
-          nvcc --version
       - name: Install Dependencies
         run: sudo apt-get update && sudo apt-get install -y clang lld
       - name: Install stable toolchain
