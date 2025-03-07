@@ -86,8 +86,4 @@ pedantic = { level = "warn", priority = -1 }
 sqlparser = { git = "https://github.com/tlovell-sxt/datafusion-sqlparser-rs.git", rev = "a828cbea22cf19bb6b4596f902bdd6f4d14a00b8" }
 
 [profile.test]
-optimize = "speed"
-
-[profile.dev]
-optimize = "speed"
-
+opt-level = 3
