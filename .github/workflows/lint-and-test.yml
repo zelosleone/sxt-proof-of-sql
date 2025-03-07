@@ -99,21 +99,21 @@ jobs:
       - name: Install Foundry/forge for solidity tests
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run solidity tests (ignored by default)
-        run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored --profile ci-test
+        run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored
       - name: Run tests without rayon
-        run: cargo nextest run --no-default-features --features="arrow blitzar"   --profile ci-test
+        run: cargo nextest run --no-default-features --features="arrow blitzar" --profile ci-test
       - name: Dry run cargo test (proof-of-sql) (test feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="test" --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="test"
       - name: Dry run cargo test (proof-of-sql) (arrow feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="arrow" --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="arrow"
       - name: Dry run cargo test (proof-of-sql) (blitzar feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="blitzar" --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="blitzar"
       - name: Dry run cargo test (proof-of-sql) (std feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="std" --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="std"
       - name: Run cargo test (proof primitives - Dory) (std feature only - i.e. not using blitzar)
         run: |
-            cargo test proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" --profile ci-test && \
-            cargo test proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std" --profile ci-test
+            cargo test proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" && \
+            cargo test proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std"
 
   examples:
       name: Run Examples (Heavy)
@@ -175,13 +175,13 @@ jobs:
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
       - name: Run Tests to Generate Coverage Data (All Features)
-        run: cargo llvm-cov --no-report --all-features --profile ci-test
-      #- name: Run Tests to Generate Coverage Data (Rayon Only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="rayon"
-      #- name: Run Tests to Generate Coverage Data (Blitzar Only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="blitzar"
-      #- name: Run Tests to Generate Coverage Data (std only)
-      #  run: cargo llvm-cov --no-report --no-default-features --features="std"
+        run: cargo llvm-cov --no-report --all-features
+      - name: Run Tests to Generate Coverage Data (Rayon Only)
+        run: cargo llvm-cov --no-report --no-default-features --features="rayon"
+      - name: Run Tests to Generate Coverage Data (Blitzar Only)
+        run: cargo llvm-cov --no-report --no-default-features --features="blitzar"
+      - name: Run Tests to Generate Coverage Data (std only)
+        run: cargo llvm-cov --no-report --no-default-features --features="std"
       - name: Generate Final LCOV Report (Merged Coverage)
         run: cargo llvm-cov report --lcov --output-path lcov.info
       - name: Upload Coverage to Codecov
