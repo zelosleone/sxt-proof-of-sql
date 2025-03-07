@@ -95,25 +95,25 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Run tests with nextest
-        run: cargo nextest run --all-features --locked --profile ci-test
+        run: cargo nextest run --all-features --profile ci-test
       - name: Install Foundry/forge for solidity tests
         uses: foundry-rs/foundry-toolchain@v1
       - name: Run solidity tests (ignored by default)
-        run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored --locked --profile ci-test
+        run: cargo test --all-features --package proof-of-sql --lib -- tests::sol_test --show-output --ignored --profile ci-test
       - name: Run tests without rayon
-        run: cargo nextest run --no-default-features --features="arrow blitzar" --locked --profile ci-test
+        run: cargo nextest run --no-default-features --features="arrow blitzar"   --profile ci-test
       - name: Dry run cargo test (proof-of-sql) (test feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="test" --locked --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="test" --profile ci-test
       - name: Dry run cargo test (proof-of-sql) (arrow feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="arrow" --locked --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="arrow" --profile ci-test
       - name: Dry run cargo test (proof-of-sql) (blitzar feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="blitzar" --locked --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="blitzar" --profile ci-test
       - name: Dry run cargo test (proof-of-sql) (std feature only)
-        run: cargo test -p proof-of-sql --no-run --no-default-features --features="std" --locked --profile ci-test
+        run: cargo test -p proof-of-sql --no-run --no-default-features --features="std" --profile ci-test
       - name: Run cargo test (proof primitives - Dory) (std feature only - i.e. not using blitzar)
         run: |
-            cargo test proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" --locked --profile ci-test && \
-            cargo test proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std" --locked --profile ci-test
+            cargo test proof_primitive::dory::dory_compute_commitments_test --no-default-features --features="std" --profile ci-test && \
+            cargo test proof_primitive::dory::dynamic_dory_compute_commitments_test --no-default-features --features="std" --profile ci-test
 
   examples:
       name: Run Examples (Heavy)
@@ -175,7 +175,7 @@ jobs:
       - name: Clean Previous Coverage Artifacts
         run: cargo llvm-cov clean --workspace
       - name: Run Tests to Generate Coverage Data (All Features)
-        run: cargo llvm-cov --no-report --all-features --locked --profile ci-test
+        run: cargo llvm-cov --no-report --all-features --profile ci-test
       #- name: Run Tests to Generate Coverage Data (Rayon Only)
       #  run: cargo llvm-cov --no-report --no-default-features --features="rayon"
       #- name: Run Tests to Generate Coverage Data (Blitzar Only)
@@ -219,7 +219,7 @@ jobs:
       - name: Install nightly toolchain
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y --profile minimal && source ~/.cargo/env && rustup toolchain install nightly
-          cargo +nightly install cargo-udeps --locked
+          cargo +nightly install cargo-udeps
       - name: Setup Rust caching
         uses: Swatinem/rust-cache@v2
       - name: Run cargo udeps
