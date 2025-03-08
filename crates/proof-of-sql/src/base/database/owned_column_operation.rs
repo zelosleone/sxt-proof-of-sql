@@ -2,6 +2,7 @@ use super::{
     AddOp, ArithmeticOp, ColumnOperationError, ColumnOperationResult, ComparisonOp, DivOp, EqualOp,
     GreaterThanOp, LessThanOp, MulOp, SubOp,
 };
+use crate::base::database::owned_column::OwnedNullableColumn;
 use crate::base::{
     database::{
         slice_operation::{slice_and, slice_not, slice_or},
@@ -9,7 +10,6 @@ use crate::base::{
     },
     scalar::Scalar,
 };
-use crate::base::database::owned_column::OwnedNullableColumn;
 use alloc::{string::ToString, vec::Vec};
 
 impl<S: Scalar> OwnedColumn<S> {
@@ -98,16 +98,16 @@ impl<S: Scalar> OwnedColumn<S> {
 
 impl<S: Scalar> OwnedNullableColumn<S> {
     /// Performs an element-wise logical NOT operation on a nullable column.
-    /// 
+    ///
     /// For boolean columns, this inverts each boolean value while preserving null values.
     /// For non-boolean columns, returns an error.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with inverted boolean values
     /// * `Err(ColumnOperationError)` - If the column is not of boolean type
     pub fn element_wise_not(&self) -> ColumnOperationResult<Self> {
         let values = self.values.element_wise_not()?;
-        
+
         Ok(Self {
             values,
             presence: self.presence.clone(),
@@ -115,15 +115,15 @@ impl<S: Scalar> OwnedNullableColumn<S> {
     }
 
     /// Performs an element-wise logical AND operation between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's three-valued logic for NULL values:
     /// - If either operand is NULL, the result is NULL (unless one operand is FALSE)
     /// - If both operands are non-NULL, performs regular boolean AND
     /// - If one operand is FALSE and the other is NULL, the result is FALSE
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to AND with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the AND results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or are not boolean type
@@ -134,17 +134,17 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_and(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => {
                 let mut result_presence = left_presence.clone();
-                
+
                 if let OwnedColumn::Boolean(right_values) = &rhs.values {
                     for i in 0..result_presence.len() {
                         if !left_presence[i] && !right_values[i] {
@@ -152,13 +152,13 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         }
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
-            
+            }
+
             (None, Some(right_presence)) => {
                 let mut result_presence = right_presence.clone();
                 if let OwnedColumn::Boolean(left_values) = &self.values {
@@ -168,20 +168,22 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         }
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
-            
+            }
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                if let (OwnedColumn::Boolean(left_values), OwnedColumn::Boolean(right_values)) = 
-                    (&self.values, &rhs.values) {
+                if let (OwnedColumn::Boolean(left_values), OwnedColumn::Boolean(right_values)) =
+                    (&self.values, &rhs.values)
+                {
                     for i in 0..left_presence.len() {
-                        if (!left_presence[i] && right_presence[i] && !right_values[i]) || 
-                           (left_presence[i] && !right_presence[i] && !left_values[i]) {
+                        if (!left_presence[i] && right_presence[i] && !right_values[i])
+                            || (left_presence[i] && !right_presence[i] && !left_values[i])
+                        {
                             result_presence.push(true);
                         } else {
                             result_presence.push(left_presence[i] && right_presence[i]);
@@ -192,25 +194,25 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         result_presence.push(left_presence[i] && right_presence[i]);
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise logical OR operation between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's three-valued logic for NULL values:
     /// - If either operand is NULL, the result is NULL (unless one operand is TRUE)
     /// - If both operands are non-NULL, performs regular boolean OR
     /// - If one operand is TRUE and the other is NULL, the result is TRUE
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to OR with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the OR results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or are not boolean type
@@ -221,17 +223,17 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_or(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => {
                 let mut result_presence = left_presence.clone();
-                
+
                 if let OwnedColumn::Boolean(right_values) = &rhs.values {
                     for i in 0..result_presence.len() {
                         if !left_presence[i] && right_values[i] {
@@ -239,16 +241,16 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         }
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
-            
+            }
+
             (None, Some(right_presence)) => {
                 let mut result_presence = right_presence.clone();
-                
+
                 if let OwnedColumn::Boolean(left_values) = &self.values {
                     for i in 0..result_presence.len() {
                         if !right_presence[i] && left_values[i] {
@@ -256,21 +258,23 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         }
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
-            
+            }
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
-                if let (OwnedColumn::Boolean(left_values), OwnedColumn::Boolean(right_values)) = 
-                    (&self.values, &rhs.values) {
+
+                if let (OwnedColumn::Boolean(left_values), OwnedColumn::Boolean(right_values)) =
+                    (&self.values, &rhs.values)
+                {
                     for i in 0..left_presence.len() {
-                        if (!left_presence[i] && right_presence[i] && right_values[i]) || 
-                           (left_presence[i] && !right_presence[i] && left_values[i]) {
+                        if (!left_presence[i] && right_presence[i] && right_values[i])
+                            || (left_presence[i] && !right_presence[i] && left_values[i])
+                        {
                             result_presence.push(true);
                         } else {
                             result_presence.push(left_presence[i] && right_presence[i]);
@@ -281,24 +285,24 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                         result_presence.push(left_presence[i] && right_presence[i]);
                     }
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise equality comparison between two nullable columns.
-    /// 
+    ///
     /// The comparison follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular equality comparison
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to compare with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable boolean column with comparison results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
@@ -309,48 +313,48 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_eq(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise "less than" comparison between two nullable columns.
-    /// 
+    ///
     /// The comparison follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular less than comparison
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to compare with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable boolean column with comparison results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
@@ -361,48 +365,48 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_lt(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise "greater than" comparison between two nullable columns.
-    /// 
+    ///
     /// The comparison follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular greater than comparison
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to compare with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable boolean column with comparison results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or incompatible types
@@ -413,48 +417,48 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_gt(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise addition between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular addition
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to add
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the addition results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
@@ -465,48 +469,48 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_add(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise subtraction between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular subtraction
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to subtract
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the subtraction results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
@@ -517,48 +521,48 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_sub(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise multiplication between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular multiplication
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to multiply with
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the multiplication results
     /// * `Err(ColumnOperationError)` - If columns have different lengths or are not numeric types
@@ -569,49 +573,49 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_mul(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 
     /// Performs an element-wise division between two nullable columns.
-    /// 
+    ///
     /// The operation follows SQL's NULL handling:
     /// - If either operand is NULL, the result is NULL
     /// - If both operands are non-NULL, performs regular division
     /// - If the divisor is zero, returns an error
-    /// 
+    ///
     /// # Arguments
     /// * `rhs` - The right-hand side column to divide by
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Self)` - A new nullable column with the division results
     /// * `Err(ColumnOperationError)` - If columns have different lengths, are not numeric types, or if division by zero occurs
@@ -622,36 +626,36 @@ impl<S: Scalar> OwnedNullableColumn<S> {
                 len_b: rhs.values.len(),
             });
         }
-        
+
         let values = self.values.element_wise_div(&rhs.values)?;
         match (&self.presence, &rhs.presence) {
             (None, None) => Ok(Self {
                 values,
                 presence: None,
             }),
-            
+
             (Some(left_presence), None) => Ok(Self {
                 values,
                 presence: Some(left_presence.clone()),
             }),
-            
+
             (None, Some(right_presence)) => Ok(Self {
                 values,
                 presence: Some(right_presence.clone()),
             }),
-            
+
             (Some(left_presence), Some(right_presence)) => {
                 let mut result_presence = Vec::with_capacity(left_presence.len());
-                
+
                 for i in 0..left_presence.len() {
                     result_presence.push(left_presence[i] && right_presence[i]);
                 }
-                
+
                 Ok(Self {
                     values,
                     presence: Some(result_presence),
                 })
-            },
+            }
         }
     }
 }
@@ -1428,41 +1432,42 @@ mod test {
 
     #[test]
     fn we_can_do_comparison_on_nullable_columns() {
-        let non_nullable = OwnedNullableColumn::<TestScalar>::new(
-            OwnedColumn::<TestScalar>::Int(vec![1, 2, 3, 4])
-        );
-        
+        let non_nullable =
+            OwnedNullableColumn::<TestScalar>::new(OwnedColumn::<TestScalar>::Int(vec![
+                1, 2, 3, 4,
+            ]));
+
         let nullable = OwnedNullableColumn::<TestScalar>::with_presence(
             OwnedColumn::<TestScalar>::Int(vec![1, 5, 3, 0]),
-            Some(vec![true, false, true, false])
+            Some(vec![true, false, true, false]),
         );
-        
+
         let result = non_nullable.element_wise_eq(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Boolean(vec![true, false, true, false])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let result = non_nullable.element_wise_lt(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Boolean(vec![false, true, false, false])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let result = non_nullable.element_wise_gt(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Boolean(vec![false, false, false, true])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let nullable2 = OwnedNullableColumn::<TestScalar>::with_presence(
             OwnedColumn::<TestScalar>::Int(vec![0, 2, 0, 4]),
-            Some(vec![false, true, false, true])
+            Some(vec![false, true, false, true]),
         );
-        
+
         let result = nullable.element_wise_eq(&nullable2).unwrap();
         assert_eq!(
             result.values,
@@ -1470,51 +1475,52 @@ mod test {
         );
         assert_eq!(result.presence, Some(vec![false, false, false, false]));
     }
-    
+
     #[test]
     fn we_can_do_arithmetic_on_nullable_columns() {
-        let non_nullable = OwnedNullableColumn::<TestScalar>::new(
-            OwnedColumn::<TestScalar>::Int(vec![10, 20, 30, 40])
-        );
-        
+        let non_nullable =
+            OwnedNullableColumn::<TestScalar>::new(OwnedColumn::<TestScalar>::Int(vec![
+                10, 20, 30, 40,
+            ]));
+
         let nullable = OwnedNullableColumn::<TestScalar>::with_presence(
             OwnedColumn::<TestScalar>::Int(vec![1, 2, 3, 4]),
-            Some(vec![true, false, true, false])
+            Some(vec![true, false, true, false]),
         );
-        
+
         let result = non_nullable.element_wise_add(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Int(vec![11, 22, 33, 44])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let result = non_nullable.element_wise_sub(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Int(vec![9, 18, 27, 36])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let result = non_nullable.element_wise_mul(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Int(vec![10, 40, 90, 160])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let result = non_nullable.element_wise_div(&nullable).unwrap();
         assert_eq!(
             result.values,
             OwnedColumn::<TestScalar>::Int(vec![10, 10, 10, 10])
         );
         assert_eq!(result.presence, Some(vec![true, false, true, false]));
-        
+
         let nullable2 = OwnedNullableColumn::<TestScalar>::with_presence(
             OwnedColumn::<TestScalar>::Int(vec![5, 10, 15, 20]),
-            Some(vec![false, true, false, true])
+            Some(vec![false, true, false, true]),
         );
-        
+
         let result = nullable.element_wise_add(&nullable2).unwrap();
         assert_eq!(
             result.values,

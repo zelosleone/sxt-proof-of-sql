@@ -376,10 +376,17 @@ impl ArrayRefExt for ArrayRef {
                 let mut bool_vec = Vec::with_capacity(range_len);
                 for i in range.clone() {
                     // Use false as the default value for nulls
-                    bool_vec.push(if array.is_null(i) { false } else { array.value(i) });
+                    bool_vec.push(if array.is_null(i) {
+                        false
+                    } else {
+                        array.value(i)
+                    });
                 }
                 let values = alloc.alloc_slice_fill_with(range_len, |i| bool_vec[i]);
-                Ok(NullableColumn::with_presence(Column::Boolean(values), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::Boolean(values),
+                    Some(presence_slice),
+                ))
             }
             DataType::UInt8 => {
                 let array = self.as_any().downcast_ref::<UInt8Array>().unwrap();
@@ -389,7 +396,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::Uint8(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::Uint8(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Int8 => {
                 let array = self.as_any().downcast_ref::<Int8Array>().unwrap();
@@ -399,7 +409,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::TinyInt(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::TinyInt(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Int16 => {
                 let array = self.as_any().downcast_ref::<Int16Array>().unwrap();
@@ -409,7 +422,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::SmallInt(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::SmallInt(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Int32 => {
                 let array = self.as_any().downcast_ref::<Int32Array>().unwrap();
@@ -419,7 +435,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::Int(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::Int(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Int64 => {
                 let array = self.as_any().downcast_ref::<Int64Array>().unwrap();
@@ -429,7 +448,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::BigInt(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::BigInt(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Decimal128(38, 0) => {
                 let array = self.as_any().downcast_ref::<Decimal128Array>().unwrap();
@@ -439,7 +461,10 @@ impl ArrayRefExt for ArrayRef {
                     values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                 }
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
-                Ok(NullableColumn::with_presence(Column::Int128(values_slice), Some(presence_slice)))
+                Ok(NullableColumn::with_presence(
+                    Column::Int128(values_slice),
+                    Some(presence_slice),
+                ))
             }
             DataType::Decimal256(precision, scale) if *precision <= 75 => {
                 let array = self.as_any().downcast_ref::<Decimal256Array>().unwrap();
@@ -474,14 +499,17 @@ impl ArrayRefExt for ArrayRef {
                         array.value(i)
                     }
                 });
-                
+
                 if let Some(scals) = precomputed_scals {
                     debug_assert_eq!(
                         scals.len(),
                         range_len,
                         "Precomputed scalars length must match range length"
                     );
-                    Ok(NullableColumn::with_presence(Column::VarChar((strings, scals)), Some(presence_slice)))
+                    Ok(NullableColumn::with_presence(
+                        Column::VarChar((strings, scals)),
+                        Some(presence_slice),
+                    ))
                 } else {
                     return Err(ArrowArrayToColumnConversionError::UnsupportedType {
                         datatype: self.data_type().clone(),
@@ -500,14 +528,17 @@ impl ArrayRefExt for ArrayRef {
                     }
                 }
                 let binary_refs = alloc.alloc_slice_fill_with(range_len, |offset| binaries[offset]);
-                
+
                 if let Some(scals) = precomputed_scals {
                     debug_assert_eq!(
                         scals.len(),
                         range_len,
                         "Precomputed scalars length must match range length"
                     );
-                    Ok(NullableColumn::with_presence(Column::VarBinary((binary_refs, scals)), Some(presence_slice)))
+                    Ok(NullableColumn::with_presence(
+                        Column::VarBinary((binary_refs, scals)),
+                        Some(presence_slice),
+                    ))
                 } else {
                     return Err(ArrowArrayToColumnConversionError::UnsupportedType {
                         datatype: self.data_type().clone(),
@@ -516,34 +547,46 @@ impl ArrayRefExt for ArrayRef {
             }
             DataType::Timestamp(time_unit, tz) => {
                 let mut values_vec = Vec::with_capacity(range_len);
-                
+
                 match time_unit {
                     ArrowTimeUnit::Second => {
-                        let array = self.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
+                        let array = self
+                            .as_any()
+                            .downcast_ref::<TimestampSecondArray>()
+                            .unwrap();
                         for i in range.clone() {
                             values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                         }
                     }
                     ArrowTimeUnit::Millisecond => {
-                        let array = self.as_any().downcast_ref::<TimestampMillisecondArray>().unwrap();
+                        let array = self
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap();
                         for i in range.clone() {
                             values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                         }
                     }
                     ArrowTimeUnit::Microsecond => {
-                        let array = self.as_any().downcast_ref::<TimestampMicrosecondArray>().unwrap();
+                        let array = self
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap();
                         for i in range.clone() {
                             values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                         }
                     }
                     ArrowTimeUnit::Nanosecond => {
-                        let array = self.as_any().downcast_ref::<TimestampNanosecondArray>().unwrap();
+                        let array = self
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap();
                         for i in range.clone() {
                             values_vec.push(if array.is_null(i) { 0 } else { array.value(i) });
                         }
                     }
                 }
-                
+
                 let values_slice = alloc.alloc_slice_copy(&values_vec);
                 let time_unit = match time_unit {
                     ArrowTimeUnit::Second => PoSQLTimeUnit::Second,
@@ -551,7 +594,7 @@ impl ArrayRefExt for ArrayRef {
                     ArrowTimeUnit::Microsecond => PoSQLTimeUnit::Microsecond,
                     ArrowTimeUnit::Nanosecond => PoSQLTimeUnit::Nanosecond,
                 };
-                
+
                 Ok(NullableColumn::with_presence(
                     Column::TimestampTZ(time_unit, PoSQLTimeZone::try_from(tz)?, values_slice),
                     Some(presence_slice),
@@ -1492,29 +1535,27 @@ mod tests {
     #[test]
     fn we_can_convert_array_with_nulls_to_nullable_column() {
         let alloc = Bump::new();
-        let array = Int32Array::from(vec![
-            Some(10), 
-            None, 
-            Some(30)
-        ]);
+        let array = Int32Array::from(vec![Some(10), None, Some(30)]);
         let array_ref = Arc::new(array) as ArrayRef;
-        
+
         let range = 0..3;
-        let nullable_column = array_ref.to_nullable_column::<TestScalar>(&alloc, &range, None).unwrap();
-        
+        let nullable_column = array_ref
+            .to_nullable_column::<TestScalar>(&alloc, &range, None)
+            .unwrap();
+
         assert_eq!(nullable_column.len(), 3);
         assert!(nullable_column.is_nullable());
-        
+
         assert!(!nullable_column.is_null(0));
         assert!(nullable_column.is_null(1));
         assert!(!nullable_column.is_null(2));
-        
+
         match nullable_column.values {
             Column::Int(values) => {
                 assert_eq!(values[0], 10);
                 assert_eq!(values[1], 0);
                 assert_eq!(values[2], 30);
-            },
+            }
             _ => panic!("Expected Int column"),
         }
     }
@@ -1522,29 +1563,27 @@ mod tests {
     #[test]
     fn we_can_convert_boolean_array_with_nulls_to_nullable_column() {
         let alloc = Bump::new();
-        let array = BooleanArray::from(vec![
-            Some(true), 
-            None, 
-            Some(false)
-        ]);
+        let array = BooleanArray::from(vec![Some(true), None, Some(false)]);
         let array_ref = Arc::new(array) as ArrayRef;
-        
+
         let range = 0..3;
-        let nullable_column = array_ref.to_nullable_column::<TestScalar>(&alloc, &range, None).unwrap();
-        
+        let nullable_column = array_ref
+            .to_nullable_column::<TestScalar>(&alloc, &range, None)
+            .unwrap();
+
         assert_eq!(nullable_column.len(), 3);
         assert!(nullable_column.is_nullable());
-        
+
         assert!(!nullable_column.is_null(0));
         assert!(nullable_column.is_null(1));
         assert!(!nullable_column.is_null(2));
-        
+
         match nullable_column.values {
             Column::Boolean(values) => {
                 assert_eq!(values[0], true);
                 assert_eq!(values[1], false);
                 assert_eq!(values[2], false);
-            },
+            }
             _ => panic!("Expected Boolean column"),
         }
     }
@@ -1552,30 +1591,32 @@ mod tests {
     #[test]
     fn we_can_convert_string_array_with_nulls_to_nullable_column() {
         let alloc = Bump::new();
-        let array = StringArray::from(vec![
-            Some("hello"), 
-            None, 
-            Some("world")
-        ]);
+        let array = StringArray::from(vec![Some("hello"), None, Some("world")]);
         let array_ref = Arc::new(array) as ArrayRef;
-        
+
         let range = 0..3;
-        let scalars = [TestScalar::from(1), TestScalar::from(2), TestScalar::from(3)];
+        let scalars = [
+            TestScalar::from(1),
+            TestScalar::from(2),
+            TestScalar::from(3),
+        ];
         let scalar_slice = alloc.alloc_slice_copy(&scalars);
-        let nullable_column = array_ref.to_nullable_column::<TestScalar>(&alloc, &range, Some(scalar_slice)).unwrap();
-        
+        let nullable_column = array_ref
+            .to_nullable_column::<TestScalar>(&alloc, &range, Some(scalar_slice))
+            .unwrap();
+
         assert_eq!(nullable_column.len(), 3);
         assert!(nullable_column.is_nullable());
         assert!(!nullable_column.is_null(0));
         assert!(nullable_column.is_null(1));
         assert!(!nullable_column.is_null(2));
-        
+
         match nullable_column.values {
             Column::VarChar((strings, _)) => {
                 assert_eq!(strings[0], "hello");
                 assert_eq!(strings[1], "");
                 assert_eq!(strings[2], "world");
-            },
+            }
             _ => panic!("Expected VarChar column"),
         }
     }
@@ -1585,23 +1626,25 @@ mod tests {
         let alloc = Bump::new();
         let array = Int32Array::from(vec![10, 20, 30]);
         let array_ref = Arc::new(array) as ArrayRef;
-        
+
         let range = 0..3;
-        let nullable_column = array_ref.to_nullable_column::<TestScalar>(&alloc, &range, None).unwrap();
-        
+        let nullable_column = array_ref
+            .to_nullable_column::<TestScalar>(&alloc, &range, None)
+            .unwrap();
+
         assert_eq!(nullable_column.len(), 3);
         assert!(!nullable_column.is_nullable());
-        
+
         for i in 0..3 {
             assert!(!nullable_column.is_null(i));
         }
-        
+
         match nullable_column.values {
             Column::Int(values) => {
                 assert_eq!(values[0], 10);
                 assert_eq!(values[1], 20);
                 assert_eq!(values[2], 30);
-            },
+            }
             _ => panic!("Expected Int column"),
         }
     }
@@ -1609,29 +1652,25 @@ mod tests {
     #[test]
     fn we_can_convert_subset_of_array_with_nulls() {
         let alloc = Bump::new();
-        let array = Int32Array::from(vec![
-            Some(10), 
-            None, 
-            Some(30),
-            Some(40),
-            None
-        ]);
+        let array = Int32Array::from(vec![Some(10), None, Some(30), Some(40), None]);
         let array_ref = Arc::new(array) as ArrayRef;
         let range = 1..4;
-        let nullable_column = array_ref.to_nullable_column::<TestScalar>(&alloc, &range, None).unwrap();
-        
+        let nullable_column = array_ref
+            .to_nullable_column::<TestScalar>(&alloc, &range, None)
+            .unwrap();
+
         assert_eq!(nullable_column.len(), 3);
         assert!(nullable_column.is_nullable());
         assert!(nullable_column.is_null(0)); // NULL at index 1 in original array
         assert!(!nullable_column.is_null(1)); // 30 at index 2 in original array
         assert!(!nullable_column.is_null(2)); // 40 at index 3 in original array
-        
+
         match nullable_column.values {
             Column::Int(values) => {
                 assert_eq!(values[0], 0); // Default value for NULL
                 assert_eq!(values[1], 30);
                 assert_eq!(values[2], 40);
-            },
+            }
             _ => panic!("Expected Int column"),
         }
     }

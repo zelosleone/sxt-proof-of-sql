@@ -1,4 +1,5 @@
 use super::{ExpressionEvaluationError, ExpressionEvaluationResult};
+use crate::base::database::owned_column::OwnedNullableColumn;
 use crate::base::{
     database::{OwnedColumn, OwnedTable},
     math::{
@@ -7,7 +8,6 @@ use crate::base::{
     },
     scalar::Scalar,
 };
-use crate::base::database::owned_column::OwnedNullableColumn;
 use alloc::{format, string::ToString, vec};
 use proof_of_sql_parser::intermediate_ast::{Expression, Literal};
 use sqlparser::ast::{BinaryOperator, Ident, UnaryOperator};
@@ -17,7 +17,7 @@ impl<S: Scalar> OwnedTable<S> {
     pub fn evaluate(&self, expr: &Expression) -> ExpressionEvaluationResult<OwnedColumn<S>> {
         // Delegate to evaluate_nullable and unwrap the result if it's not nullable
         let nullable_result = self.evaluate_nullable(expr)?;
-        
+
         // If the result has no NULL values, return the values directly
         if !nullable_result.is_nullable() {
             Ok(nullable_result.values)
@@ -28,11 +28,16 @@ impl<S: Scalar> OwnedTable<S> {
             })
         }
     }
-    
+
     /// Evaluate an expression on the table, potentially returning NULL values.
-    pub fn evaluate_nullable(&self, expr: &Expression) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
+    pub fn evaluate_nullable(
+        &self,
+        expr: &Expression,
+    ) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
         match expr {
-            Expression::Column(identifier) => self.evaluate_nullable_column(&Ident::from(*identifier)),
+            Expression::Column(identifier) => {
+                self.evaluate_nullable_column(&Ident::from(*identifier))
+            }
             Expression::Literal(lit) => self.evaluate_nullable_literal(lit),
             Expression::Binary { op, left, right } => {
                 self.evaluate_nullable_binary_expr(&(*op).into(), left, right)
@@ -53,11 +58,14 @@ impl<S: Scalar> OwnedTable<S> {
             })?
             .clone())
     }
-    
-    fn evaluate_nullable_column(&self, identifier: &Ident) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
+
+    fn evaluate_nullable_column(
+        &self,
+        identifier: &Ident,
+    ) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
         // Get the column from the table
         let column = self.evaluate_column(identifier)?;
-        
+
         // Convert to a non-nullable OwnedNullableColumn
         Ok(OwnedNullableColumn::new(column))
     }
@@ -87,15 +95,18 @@ impl<S: Scalar> OwnedTable<S> {
             )),
         }
     }
-    
-    fn evaluate_nullable_literal(&self, lit: &Literal) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
+
+    fn evaluate_nullable_literal(
+        &self,
+        lit: &Literal,
+    ) -> ExpressionEvaluationResult<OwnedNullableColumn<S>> {
         // Evaluate the literal as a non-nullable column
         let column = self.evaluate_literal(lit)?;
-        
+
         // Convert to a non-nullable OwnedNullableColumn
         Ok(OwnedNullableColumn::new(column))
     }
-    
+
     fn evaluate_nullable_unary_expr(
         &self,
         op: UnaryOperator,
@@ -110,7 +121,7 @@ impl<S: Scalar> OwnedTable<S> {
             }),
         }
     }
-    
+
     fn evaluate_nullable_binary_expr(
         &self,
         op: &BinaryOperator,
