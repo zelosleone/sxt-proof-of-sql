@@ -2,9 +2,9 @@ use super::{
     AddOp, ArithmeticOp, ColumnOperationError, ColumnOperationResult, ComparisonOp, DivOp, EqualOp,
     GreaterThanOp, LessThanOp, MulOp, SubOp,
 };
-use crate::base::database::owned_column::OwnedNullableColumn;
 use crate::base::{
     database::{
+        owned_column::OwnedNullableColumn,
         slice_operation::{slice_and, slice_not, slice_or},
         OwnedColumn,
     },

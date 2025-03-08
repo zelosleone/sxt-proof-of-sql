@@ -1,5 +1,4 @@
-use super::owned_column::OwnedNullableColumn;
-use super::{LiteralValue, OwnedColumn, TableRef};
+use super::{owned_column::OwnedNullableColumn, LiteralValue, OwnedColumn, TableRef};
 use crate::base::{
     math::decimal::Precision,
     scalar::{Scalar, ScalarExt},
@@ -200,7 +199,7 @@ impl<'a, S: Scalar> Column<'a, S> {
             Self::Int(_) => ColumnType::Int,
             Self::BigInt(_) => ColumnType::BigInt,
             Self::VarChar(_) => ColumnType::VarChar,
-            Self::Int128(_col) => ColumnType::Int128,
+            Self::Int128(col) => ColumnType::Int128,
             Self::Scalar(_col) => ColumnType::Scalar,
             Self::Decimal75(precision, scale, _) => ColumnType::Decimal75(*precision, *scale),
             Self::TimestampTZ(time_unit, timezone, _) => {

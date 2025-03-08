@@ -1,8 +1,7 @@
-use crate::base::database::owned_column::OwnedNullableColumn;
 use crate::base::{
     database::{
-        owned_table_utility::*, ColumnOperationError, ExpressionEvaluationError, OwnedColumn,
-        OwnedTable,
+        owned_column::OwnedNullableColumn, owned_table_utility::*, ColumnOperationError,
+        ExpressionEvaluationError, OwnedColumn, OwnedTable,
     },
     math::decimal::Precision,
     scalar::test_scalar::TestScalar,

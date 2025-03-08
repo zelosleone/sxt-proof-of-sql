@@ -1,7 +1,6 @@
 use super::{ExpressionEvaluationError, ExpressionEvaluationResult};
-use crate::base::database::owned_column::OwnedNullableColumn;
 use crate::base::{
-    database::{OwnedColumn, OwnedTable},
+    database::{owned_column::OwnedNullableColumn, OwnedColumn, OwnedTable},
     math::{
         decimal::{try_convert_intermediate_decimal_to_scalar, DecimalError, Precision},
         BigDecimalExt,
