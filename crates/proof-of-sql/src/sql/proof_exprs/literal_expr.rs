@@ -77,8 +77,9 @@ impl ProofExpr for LiteralExpr {
         _builder: &mut impl VerificationBuilder<S>,
         _accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        Ok(chi_eval * self.value.to_scalar())
+    ) -> Result<(S, Option<S>), ProofError> {
+        // Literal expressions are never null
+        Ok((chi_eval * self.value.to_scalar(), None))
     }
 
     fn get_column_references(&self, _columns: &mut IndexSet<ColumnRef>) {}

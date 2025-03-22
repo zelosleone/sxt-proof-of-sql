@@ -76,11 +76,31 @@ impl ProofExpr for OrExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        let lhs = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
-        let rhs = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
+    ) -> Result<(S, Option<S>), ProofError> {
+        let (lhs_value, lhs_presence) = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
+        let (rhs_value, rhs_presence) = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
 
-        verifier_evaluate_or(builder, &lhs, &rhs)
+        // For OR operations, if either operand is NULL, the result is NULL
+        // Combine presence information from both operands
+        let presence = match (lhs_presence, rhs_presence) {
+            (Some(lhs_p), Some(rhs_p)) => Some(lhs_p * rhs_p), // Both present = present
+            (Some(lhs_p), None) => Some(lhs_p),                // Only LHS nullable
+            (None, Some(rhs_p)) => Some(rhs_p),                // Only RHS nullable
+            (None, None) => None,                              // Neither nullable
+        };
+
+        // lhs_and_rhs
+        let lhs_and_rhs = builder.try_consume_final_round_mle_evaluation()?;
+
+        // subpolynomial: lhs_and_rhs - lhs_value * rhs_value
+        builder.try_produce_sumcheck_subpolynomial_evaluation(
+            SumcheckSubpolynomialType::Identity,
+            lhs_and_rhs - lhs_value * rhs_value,
+            2,
+        )?;
+
+        // selection
+        Ok((lhs_value + rhs_value - lhs_and_rhs, presence))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

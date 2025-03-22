@@ -71,11 +71,11 @@ where
             .get(&self.table.table_ref)
             .expect("Chi eval not found");
         // 1. selection
-        let selection_eval =
+        let (selection_value, selection_presence) =
             self.where_clause
                 .verifier_evaluate(builder, accessor, input_chi_eval)?;
         // 2. columns
-        let columns_evals = Vec::from_iter(
+        let column_results = Vec::from_iter(
             self.aliased_results
                 .iter()
                 .map(|aliased_expr| {
@@ -85,6 +85,16 @@ where
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         );
+
+        // Split the results into values and presence information
+        let mut column_values = Vec::with_capacity(column_results.len());
+        let mut column_presence = Vec::with_capacity(column_results.len());
+
+        for (value, presence) in &column_results {
+            column_values.push(*value);
+            column_presence.push(*presence);
+        }
+
         // 3. filtered_columns
         let filtered_columns_evals =
             builder.try_consume_final_round_mle_evaluations(self.aliased_results.len())?;
@@ -101,12 +111,19 @@ where
             beta,
             input_chi_eval,
             output_chi_eval,
-            &columns_evals,
-            selection_eval,
+            &column_values,
+            selection_value,
             &filtered_columns_evals,
         )?;
-        Ok(TableEvaluation::new(
+
+        // Create presence information for the filtered columns
+        // For now, we'll just copy the presence information from the input columns
+        // This is a simplification and might need to be refined later
+        let filtered_column_presence = column_presence;
+
+        Ok(TableEvaluation::with_presence(
             filtered_columns_evals,
+            filtered_column_presence,
             output_chi_eval,
         ))
     }

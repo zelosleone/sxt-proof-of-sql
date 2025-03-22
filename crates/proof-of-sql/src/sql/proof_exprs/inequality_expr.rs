@@ -99,19 +99,31 @@ impl ProofExpr for InequalityExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        let lhs_eval = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
-        let rhs_eval = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
+    ) -> Result<(S, Option<S>), ProofError> {
+        let (lhs_value, lhs_presence) = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
+        let (rhs_value, rhs_presence) = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
         let lhs_scale = self.lhs.data_type().scale().unwrap_or(0);
         let rhs_scale = self.rhs.data_type().scale().unwrap_or(0);
-        let diff_eval = if self.is_lt {
-            scale_and_add_subtract_eval(lhs_eval, rhs_eval, lhs_scale, rhs_scale, true)
+
+        // For comparison operations, if either operand is NULL, the result is NULL
+        // Combine presence information from both operands
+        let presence = match (lhs_presence, rhs_presence) {
+            (Some(lhs_p), Some(rhs_p)) => Some(lhs_p * rhs_p), // Both present = present
+            (Some(lhs_p), None) => Some(lhs_p),                // Only LHS nullable
+            (None, Some(rhs_p)) => Some(rhs_p),                // Only RHS nullable
+            (None, None) => None,                              // Neither nullable
+        };
+
+        let diff_value = if self.is_lt {
+            scale_and_add_subtract_eval(lhs_value, rhs_value, lhs_scale, rhs_scale, true)
         } else {
-            scale_and_add_subtract_eval(rhs_eval, lhs_eval, rhs_scale, lhs_scale, true)
+            scale_and_add_subtract_eval(rhs_value, lhs_value, rhs_scale, lhs_scale, true)
         };
 
         // sign(diff) == -1
-        verifier_evaluate_sign(builder, diff_eval, chi_eval, None)
+        let sign_value = verifier_evaluate_sign(builder, diff_value, chi_eval, None)?;
+
+        Ok((sign_value, presence))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

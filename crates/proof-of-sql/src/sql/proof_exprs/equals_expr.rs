@@ -87,13 +87,25 @@ impl ProofExpr for EqualsExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        let lhs_eval = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
-        let rhs_eval = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
+    ) -> Result<(S, Option<S>), ProofError> {
+        let (lhs_value, lhs_presence) = self.lhs.verifier_evaluate(builder, accessor, chi_eval)?;
+        let (rhs_value, rhs_presence) = self.rhs.verifier_evaluate(builder, accessor, chi_eval)?;
         let lhs_scale = self.lhs.data_type().scale().unwrap_or(0);
         let rhs_scale = self.rhs.data_type().scale().unwrap_or(0);
-        let res = scale_and_add_subtract_eval(lhs_eval, rhs_eval, lhs_scale, rhs_scale, true);
-        verifier_evaluate_equals_zero(builder, res, chi_eval)
+
+        // For comparison operations, if either operand is NULL, the result is NULL
+        // Combine presence information from both operands
+        let presence = match (lhs_presence, rhs_presence) {
+            (Some(lhs_p), Some(rhs_p)) => Some(lhs_p * rhs_p), // Both present = present
+            (Some(lhs_p), None) => Some(lhs_p),                // Only LHS nullable
+            (None, Some(rhs_p)) => Some(rhs_p),                // Only RHS nullable
+            (None, None) => None,                              // Neither nullable
+        };
+
+        let res_value = scale_and_add_subtract_eval(lhs_value, rhs_value, lhs_scale, rhs_scale, true);
+        let equals_zero_value = verifier_evaluate_equals_zero(builder, res_value, chi_eval)?;
+
+        Ok((equals_zero_value, presence))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

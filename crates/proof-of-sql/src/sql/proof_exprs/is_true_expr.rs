@@ -1,7 +1,7 @@
 use super::{DynProofExpr, ProofExpr};
 use crate::{
     base::{
-        database::{Column, ColumnRef, ColumnType, Table},
+        database::{Column, ColumnRef, ColumnType, NullableColumn, Table},
         map::{IndexMap, IndexSet},
         proof::ProofError,
         scalar::Scalar,
@@ -69,48 +69,44 @@ impl ProofExpr for IsTrueExpr {
         alloc: &'a Bump,
         table: &Table<'a, S>,
     ) -> Column<'a, S> {
+        // Delegate to result_evaluate_nullable and return just the values
+        self.result_evaluate_nullable(alloc, table).values
+    }
+
+    #[tracing::instrument(name = "IsTrueExpr::result_evaluate_nullable", level = "debug", skip_all)]
+    fn result_evaluate_nullable<'a, S: Scalar>(
+        &self,
+        alloc: &'a Bump,
+        table: &Table<'a, S>,
+    ) -> NullableColumn<'a, S> {
         log::log_memory_usage("Start");
 
-        let inner_column = self.expr.result_evaluate(alloc, table);
-        let inner_values = inner_column
+        let inner_nullable = self.expr.result_evaluate_nullable(alloc, table);
+        let inner_values = inner_nullable.values
             .as_boolean()
             .expect("Expression is not boolean");
-        let mut column_refs = IndexSet::default();
-        self.expr.get_column_references(&mut column_refs);
 
         if self.malicious {
             let result_slice = alloc.alloc_slice_fill_copy(table.num_rows(), true);
-            let res = Column::Boolean(result_slice);
+            let res = NullableColumn::new(Column::Boolean(result_slice));
             log::log_memory_usage("End");
             return res;
         }
 
-        let mut has_nullable_column = false;
-        let mut combined_presence = vec![true; table.num_rows()];
-        let presence_map = table.presence_map();
-
-        for col_ref in &column_refs {
-            let ident = col_ref.column_id();
-            if let Some(col_presence) = presence_map.get(&ident) {
-                has_nullable_column = true;
-                for (i, &is_present) in col_presence.iter().enumerate() {
-                    if !is_present {
-                        combined_presence[i] = false;
-                    }
-                }
-            }
-        }
-
-        let presence_slice = if has_nullable_column {
-            alloc.alloc_slice_copy(&combined_presence)
-        } else {
+        // Get presence information from the inner expression
+        // If inner_nullable.presence is None, all values are present
+        let inner_presence = inner_nullable.presence.unwrap_or_else(|| {
             alloc.alloc_slice_fill_copy(table.num_rows(), true)
-        };
+        });
 
+        // The result is true only if the inner value is true AND it's present (not null)
+        // For SQL WHERE clauses, NULL values are treated as FALSE
         let result_slice = alloc
-            .alloc_slice_fill_with(inner_values.len(), |i| inner_values[i] && presence_slice[i]);
+            .alloc_slice_fill_with(inner_values.len(), |i| inner_values[i] && inner_presence[i]);
 
-        let res = Column::Boolean(result_slice);
+        // IsTrueExpr always returns a non-nullable result (all values are present)
+        // This is because SQL WHERE clauses treat NULL as FALSE, so the result is always a definite TRUE or FALSE
+        let res = NullableColumn::new(Column::Boolean(result_slice));
         log::log_memory_usage("End");
         res
     }
@@ -122,10 +118,21 @@ impl ProofExpr for IsTrueExpr {
         alloc: &'a Bump,
         table: &Table<'a, S>,
     ) -> Column<'a, S> {
+        // Delegate to prover_evaluate_nullable and return just the values
+        self.prover_evaluate_nullable(builder, alloc, table).values
+    }
+
+    #[tracing::instrument(name = "IsTrueExpr::prover_evaluate_nullable", level = "debug", skip_all)]
+    fn prover_evaluate_nullable<'a, S: Scalar>(
+        &self,
+        builder: &mut FinalRoundBuilder<'a, S>,
+        alloc: &'a Bump,
+        table: &Table<'a, S>,
+    ) -> NullableColumn<'a, S> {
         log::log_memory_usage("Start");
 
-        let inner_column = self.expr.prover_evaluate(builder, alloc, table);
-        let inner_values = inner_column
+        let inner_nullable = self.expr.prover_evaluate_nullable(builder, alloc, table);
+        let inner_values = inner_nullable.values
             .as_boolean()
             .expect("Expression is not boolean");
         let n = table.num_rows();
@@ -141,44 +148,29 @@ impl ProofExpr for IsTrueExpr {
                 )],
             );
 
-            let res = Column::Boolean(result_slice);
+            let res = NullableColumn::new(Column::Boolean(result_slice));
             log::log_memory_usage("End");
             return res;
         }
 
-        let mut column_refs = IndexSet::default();
-        self.expr.get_column_references(&mut column_refs);
-
-        let mut has_nullable_column = false;
-        let mut combined_presence = vec![true; n];
-        let presence_map = table.presence_map();
-
-        for col_ref in &column_refs {
-            let ident = col_ref.column_id();
-            if let Some(col_presence) = presence_map.get(&ident) {
-                has_nullable_column = true;
-                for (i, &is_present) in col_presence.iter().enumerate() {
-                    if !is_present {
-                        combined_presence[i] = false;
-                    }
-                }
-            }
-        }
-
-        let presence_slice: &[bool] = if has_nullable_column {
-            alloc.alloc_slice_copy(&combined_presence)
-        } else {
+        // Get presence information from the inner expression
+        // If inner_nullable.presence is None, all values are present
+        let presence_slice = inner_nullable.presence.unwrap_or_else(|| {
             alloc.alloc_slice_fill_copy(n, true)
-        };
+        });
 
         builder.produce_intermediate_mle(presence_slice);
         builder.produce_intermediate_mle(inner_values);
 
+        // The result is true only if the inner value is true AND it's present (not null)
+        // For SQL WHERE clauses, NULL values are treated as FALSE
         let is_true_result: &[bool] =
             alloc.alloc_slice_fill_with(n, |i| inner_values[i] && presence_slice[i]);
 
         builder.produce_intermediate_mle(is_true_result);
 
+        // Verify the constraint: is_true = inner_value AND presence
+        // This is equivalent to is_true = inner_value * presence for boolean values
         builder.produce_sumcheck_subpolynomial(
             SumcheckSubpolynomialType::Identity,
             vec![
@@ -190,7 +182,8 @@ impl ProofExpr for IsTrueExpr {
             ],
         );
 
-        let res = Column::Boolean(is_true_result);
+        // IsTrueExpr always returns a non-nullable result (all values are present)
+        let res = NullableColumn::new(Column::Boolean(is_true_result));
         log::log_memory_usage("End");
         res
     }
@@ -200,17 +193,47 @@ impl ProofExpr for IsTrueExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        let inner_eval = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
-        let presence_eval = builder.try_consume_final_round_mle_evaluation()?;
-        builder.try_consume_final_round_mle_evaluation()?;
+    ) -> Result<(S, Option<S>), ProofError> {
+        // Get the inner expression's value and presence evaluations
+        let (inner_value_eval, inner_presence_eval) = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
+
+        // If inner_presence_eval is None, use chi_eval (all values are present)
+        let presence_eval = inner_presence_eval.unwrap_or_else(|| chi_eval);
+
+        // Consume the presence evaluation from the builder
+        let builder_presence_eval = builder.try_consume_final_round_mle_evaluation()?;
+
+        // Verify that the presence evaluation matches what we expect
+        if builder_presence_eval != presence_eval {
+            return Err(ProofError::VerificationError {
+                error: "Presence evaluation mismatch",
+            });
+        }
+
+        // Consume the inner value evaluation from the builder
+        let builder_inner_value_eval = builder.try_consume_final_round_mle_evaluation()?;
+
+        // Verify that the inner value evaluation matches what we expect
+        if builder_inner_value_eval != inner_value_eval {
+            return Err(ProofError::VerificationError {
+                error: "Inner value evaluation mismatch",
+            });
+        }
+
+        // Consume the is_true evaluation from the builder
         let is_true_eval = builder.try_consume_final_round_mle_evaluation()?;
+
+        // Verify the constraint: is_true = inner_value AND presence
+        // For boolean values, logical AND is equivalent to multiplication
+        // is_true = inner_value * presence
         builder.try_produce_sumcheck_subpolynomial_evaluation(
             SumcheckSubpolynomialType::Identity,
-            is_true_eval - (inner_eval * presence_eval),
+            is_true_eval - (inner_value_eval * presence_eval),
             2,
         )?;
-        Ok(is_true_eval)
+
+        // IsTrueExpr always returns a non-nullable result
+        Ok((is_true_eval, None))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

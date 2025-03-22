@@ -71,9 +71,11 @@ impl ProofExpr for NotExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
-        let eval = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
-        Ok(chi_eval - eval)
+    ) -> Result<(S, Option<S>), ProofError> {
+        let (value, presence) = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
+
+        // NOT preserves nullability - if the input is NULL, the result is NULL
+        Ok((chi_eval - value, presence))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

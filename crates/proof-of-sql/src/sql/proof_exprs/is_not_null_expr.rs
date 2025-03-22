@@ -144,9 +144,9 @@ impl ProofExpr for IsNotNullExpr {
         builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         chi_eval: S,
-    ) -> Result<S, ProofError> {
+    ) -> Result<(S, Option<S>), ProofError> {
         // First get the inner expression evaluation
-        let _inner_eval = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
+        let (_inner_value, _inner_presence) = self.expr.verifier_evaluate(builder, accessor, chi_eval)?;
 
         // Get the derived presence information that was explicitly committed in the proof
         let presence_eval = builder.try_consume_final_round_mle_evaluation()?;
@@ -169,8 +169,8 @@ impl ProofExpr for IsNotNullExpr {
         // Get the claimed result from the proof - this is the evaluation of the IS NOT NULL expression
         let claimed_result = builder.try_consume_final_round_mle_evaluation()?;
 
-        // Return the claimed result directly
-        Ok(claimed_result)
+        // IS NOT NULL expressions are never null themselves
+        Ok((claimed_result, None))
     }
 
     fn get_column_references(&self, columns: &mut IndexSet<ColumnRef>) {

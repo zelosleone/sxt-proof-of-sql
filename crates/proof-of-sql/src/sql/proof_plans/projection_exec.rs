@@ -84,7 +84,7 @@ impl ProofPlan for ProjectionExec {
             })
             .collect::<IndexMap<_, _>>();
 
-        let output_column_evals = self
+        let output_column_results = self
             .aliased_results
             .iter()
             .map(|aliased_expr| {
@@ -93,7 +93,17 @@ impl ProofPlan for ProjectionExec {
                     .verifier_evaluate(builder, &current_accessor, chi_eval)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(TableEvaluation::new(output_column_evals, chi_eval))
+
+        // Split the results into values and presence information
+        let mut output_column_values = Vec::with_capacity(output_column_results.len());
+        let mut output_column_presence = Vec::with_capacity(output_column_results.len());
+
+        for (value, presence) in output_column_results {
+            output_column_values.push(value);
+            output_column_presence.push(presence);
+        }
+
+        Ok(TableEvaluation::with_presence(output_column_values, output_column_presence, chi_eval))
     }
 
     fn get_column_result_fields(&self) -> Vec<ColumnField> {

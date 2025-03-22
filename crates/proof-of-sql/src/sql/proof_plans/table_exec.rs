@@ -1,6 +1,6 @@
 use crate::{
     base::{
-        database::{ColumnField, ColumnRef, OwnedTable, Table, TableEvaluation, TableRef},
+        database::{ColumnField, ColumnRef, ColumnType, OwnedTable, Table, TableEvaluation, TableRef},
         map::{indexset, IndexMap, IndexSet},
         proof::ProofError,
         scalar::Scalar,
@@ -13,6 +13,7 @@ use crate::{
 use alloc::vec::Vec;
 use bumpalo::Bump;
 use serde::{Deserialize, Serialize};
+use sqlparser::ast::Ident;
 
 /// Source [`ProofPlan`] for (sub)queries with table source such as `SELECT col from tab;`
 /// Inspired by `DataFusion` data source [`ExecutionPlan`]s such as [`ArrowExec`] and [`CsvExec`].
@@ -42,19 +43,33 @@ impl ProofPlan for TableExec {
         _result: Option<&OwnedTable<S>>,
         chi_eval_map: &IndexMap<TableRef, S>,
     ) -> Result<TableEvaluation<S>, ProofError> {
-        let column_evals = self
-            .schema
-            .iter()
-            .map(|field| {
-                let column_ref =
-                    ColumnRef::new(self.table_ref.clone(), field.name(), field.data_type());
-                *accessor.get(&column_ref).expect("Column does not exist")
-            })
-            .collect::<Vec<_>>();
+        let mut column_evals = Vec::with_capacity(self.schema.len());
+        let mut presence_evals = Vec::with_capacity(self.schema.len());
+
+        for field in &self.schema {
+            let column_ref = ColumnRef::new(self.table_ref.clone(), field.name(), field.data_type());
+            let value_eval = *accessor.get(&column_ref).expect("Column does not exist");
+            column_evals.push(value_eval);
+
+            // Check for presence information
+            let mut presence_column_ref = column_ref.clone();
+            let mut presence_id = presence_column_ref.column_id().to_string();
+            presence_id.push_str("_presence");
+            presence_column_ref = ColumnRef::new(
+                presence_column_ref.table_ref(),
+                Ident::new(&presence_id),
+                ColumnType::Boolean
+            );
+
+            let presence_eval = accessor.get(&presence_column_ref).copied();
+            presence_evals.push(presence_eval);
+        }
+
         let chi_eval = *chi_eval_map
             .get(&self.table_ref)
             .expect("Chi eval not found");
-        Ok(TableEvaluation::new(column_evals, chi_eval))
+
+        Ok(TableEvaluation::with_presence(column_evals, presence_evals, chi_eval))
     }
 
     fn get_column_result_fields(&self) -> Vec<ColumnField> {

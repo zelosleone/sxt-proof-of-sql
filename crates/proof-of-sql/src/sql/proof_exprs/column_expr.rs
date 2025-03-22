@@ -1,7 +1,7 @@
 use super::ProofExpr;
 use crate::{
     base::{
-        database::{Column, ColumnField, ColumnRef, ColumnType, Table},
+        database::{Column, ColumnField, ColumnRef, ColumnType, NullableColumn, Table},
         map::{IndexMap, IndexSet},
         proof::ProofError,
         scalar::Scalar,
@@ -56,6 +56,18 @@ impl ColumnExpr {
             .get(&self.column_ref.column_id())
             .expect("Column not found")
     }
+
+    /// Get the column as a NullableColumn
+    /// # Panics
+    ///
+    /// Will panic if the column is not found. Shouldn't happen in practice since
+    /// code in `sql/parse` should have already checked that the column exists.
+    #[must_use]
+    pub fn fetch_nullable_column<'a, S: Scalar>(&self, table: &Table<'a, S>) -> NullableColumn<'a, S> {
+        let column = self.fetch_column(table);
+        let presence = table.presence_map().get(&self.column_ref.column_id()).copied();
+        NullableColumn::with_presence(column, presence).expect("Presence length mismatch")
+    }
 }
 
 impl ProofExpr for ColumnExpr {
@@ -92,12 +104,29 @@ impl ProofExpr for ColumnExpr {
         _builder: &mut impl VerificationBuilder<S>,
         accessor: &IndexMap<ColumnRef, S>,
         _chi_eval: S,
-    ) -> Result<S, ProofError> {
-        Ok(*accessor
+    ) -> Result<(S, Option<S>), ProofError> {
+        let value = *accessor
             .get(&self.column_ref)
             .ok_or(ProofError::VerificationError {
                 error: "Column Not Found",
-            })?)
+            })?;
+
+        // For presence, we need to check if this column is nullable
+        // If it's nullable, we should have a presence evaluation in the accessor
+        // We'll use a convention where nullable columns have a presence entry with a key
+        // that has the same column_ref but with a "_presence" suffix
+        let mut presence_column_ref = self.column_ref.clone();
+        let mut presence_id = presence_column_ref.column_id().to_string();
+        presence_id.push_str("_presence");
+        presence_column_ref = ColumnRef::new(
+            presence_column_ref.table_ref(),
+            Ident::new(&presence_id),
+            ColumnType::Boolean
+        );
+
+        let presence = accessor.get(&presence_column_ref).copied();
+
+        Ok((value, presence))
     }
 
     /// Insert in the [`IndexSet`] `columns` all the column

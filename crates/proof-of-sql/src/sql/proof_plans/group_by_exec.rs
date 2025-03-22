@@ -79,16 +79,16 @@ impl ProofPlan for GroupByExec {
             .get(&self.table.table_ref)
             .expect("Chi eval not found");
         // 1. selection
-        let where_eval = self
+        let (where_value, where_presence) = self
             .where_clause
             .verifier_evaluate(builder, accessor, input_chi_eval)?;
         // 2. columns
-        let group_by_evals = self
+        let group_by_results = self
             .group_by_exprs
             .iter()
             .map(|expr| expr.verifier_evaluate(builder, accessor, input_chi_eval))
             .collect::<Result<Vec<_>, _>>()?;
-        let aggregate_evals = self
+        let aggregate_results = self
             .sum_expr
             .iter()
             .map(|aliased_expr| {
@@ -97,6 +97,24 @@ impl ProofPlan for GroupByExec {
                     .verifier_evaluate(builder, accessor, input_chi_eval)
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        // Split the results into values and presence information
+        let mut group_by_values = Vec::with_capacity(group_by_results.len());
+        let mut group_by_presence = Vec::with_capacity(group_by_results.len());
+
+        for (value, presence) in &group_by_results {
+            group_by_values.push(*value);
+            group_by_presence.push(*presence);
+        }
+
+        let mut aggregate_values = Vec::with_capacity(aggregate_results.len());
+        let mut aggregate_presence = Vec::with_capacity(aggregate_results.len());
+
+        for (value, presence) in &aggregate_results {
+            aggregate_values.push(*value);
+            aggregate_presence.push(*presence);
+        }
+
         // 3. filtered_columns
         let group_by_result_columns_evals =
             builder.try_consume_final_round_mle_evaluations(self.group_by_exprs.len())?;
@@ -114,7 +132,7 @@ impl ProofPlan for GroupByExec {
             beta,
             input_chi_eval,
             output_chi_eval,
-            (group_by_evals, aggregate_evals, where_eval),
+            (group_by_values, aggregate_values, where_value),
             (
                 group_by_result_columns_evals.clone(),
                 sum_result_columns_evals.clone(),
@@ -151,7 +169,16 @@ impl ProofPlan for GroupByExec {
             .chain(sum_result_columns_evals)
             .chain(iter::once(count_column_eval))
             .collect::<Vec<_>>();
-        Ok(TableEvaluation::new(column_evals, output_chi_eval))
+
+        // Combine presence information from group_by and aggregate columns
+        // For the count column, we'll assume it's never null
+        let column_presence = group_by_presence
+            .into_iter()
+            .chain(aggregate_presence)
+            .chain(iter::once(None)) // Count column is never null
+            .collect::<Vec<_>>();
+
+        Ok(TableEvaluation::with_presence(column_evals, column_presence, output_chi_eval))
     }
 
     #[expect(clippy::redundant_closure_for_method_calls)]
